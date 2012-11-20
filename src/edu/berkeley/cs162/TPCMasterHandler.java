@@ -58,9 +58,10 @@ public class TPCMasterHandler implements NetworkHandler {
 		this(keyserver, 1);
 	}
 
-	public TPCMasterHandler(KVServer kvServer, int connections) {
-		this.kvServer = kvServer;
-		threadpool = new ThreadPool(connections);	
+	public TPCMasterHandler(KVServer keyserver, long slaveID) {
+		this.kvServer = keyserver;
+		this.slaveID = slaveID;
+		threadpool = new ThreadPool(1);
 	}
 
 	public TPCMasterHandler(KVServer kvServer, long slaveID, int connections) {
@@ -201,12 +202,17 @@ public class TPCMasterHandler implements NetworkHandler {
 	 * @throws KVException
 	 */
 	public void registerWithMaster(String masterHostName, SocketServer server) throws UnknownHostException, IOException, KVException {
-		AutoGrader.agRegistrationStart(slaveID);
+		AutoGrader.agRegistrationStarted(slaveID);
 		
 		Socket master = new Socket(masterHostName, 9090);
 		KVMessage regMessage = new KVMessage("register", slaveID + "@" + server.getHostname() + ":" + server.getPort());
 		regMessage.sendMessage(master);
+		
+		// Receive master response. 
+		// Response should always be success, except for Exceptions. Throw away.
+		new KVMessage(master.getInputStream());
+		
 		master.close();
-		AutoGrader.agRegistrationStart(slaveID);
+		AutoGrader.agRegistrationFinished(slaveID);
 	}
 }

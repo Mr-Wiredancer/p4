@@ -54,6 +54,11 @@ public class SocketServer {
 		this.port = port;
 	}
 	
+	/**
+	 * Creates a ServerSocket. 
+	 * Uses 'port' if it is greater than zero, otherwise, selects a random port. 
+	 * @throws IOException
+	 */
 	public void connect() throws IOException {
 	      // TODO: implement me
 	}

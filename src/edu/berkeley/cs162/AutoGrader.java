@@ -421,7 +421,12 @@ public class AutoGrader {
 		}
 	}
 
-	public static void agRegistrationStart(long slaveID) {
+	public static void agRegistrationStarted(long slaveID) {
+		// TODO Auto-generated method stub
+		
+	}
+
+	public static void agRegistrationFinished(long slaveID) {
 		// TODO Auto-generated method stub
 		
 	}

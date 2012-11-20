@@ -40,8 +40,8 @@ public class SlaveServer {
 	
 	static long slaveID = -1;
 	static String masterHostName = null;
-	static int masterPort = -1;
-	static int registrationPort = -1;
+	static int masterPort = 8080;
+	static int registrationPort = 9090;
 	
 	/**
 	 * @param args
@@ -55,14 +55,12 @@ public class SlaveServer {
 		// Read Master info from command line
 		slaveID = Long.parseLong(args[0]);
 		masterHostName = args[1];
-		masterPort = 8080;
-		registrationPort = 9090;
 		
 		// Create TPCMasterHandler
 		System.out.println("Binding SlaveServer:");
 		keyServer = new KVServer(100, 10);
 		server = new SocketServer(InetAddress.getLocalHost().getHostAddress());
-		TPCMasterHandler handler = new TPCMasterHandler(keyServer, slaveID, masterPort);
+		TPCMasterHandler handler = new TPCMasterHandler(keyServer, slaveID);
 		server.addHandler(handler);
 		server.connect();
 		
@@ -76,7 +74,7 @@ public class SlaveServer {
 		// Set log for TPCMasterHandler
 		handler.setTPCLog(tpcLog);
 		
-		// Register with the Master
+		// Register with the Master. Assuming it always succeeds (not catching).
 		handler.registerWithMaster(masterHostName, server);
 		
 		System.out.println("Starting SlaveServer at " + server.getHostname() + ":" + server.getPort());

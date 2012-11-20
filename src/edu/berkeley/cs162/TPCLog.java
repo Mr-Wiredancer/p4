@@ -38,20 +38,30 @@ import java.util.ArrayList;
 
 public class TPCLog {
 
+	// Path to log file
 	private String logPath = null;
-	private KVServer keyServer = null;
+	// Reference to the KVServer of this slave. Populated by rebuildKeyServer()
+	private KVServer kvServer = null;
 
 	// Log entries
 	private ArrayList<KVMessage> entries = null;
 	
-	// Keeps track of the interrupted 2PC operation (There can be at most one, 
-	// i.e., when the last 2PC operation before crashing was in READY state)
+	/*  Keeps track of the interrupted 2PC operation.
+	 There can be at most one, i.e., when the last 2PC operation before
+	 crashing was in READY state.
+	 Set in  rebuildKeyServer() during recovery */ 
 	private KVMessage interruptedTpcOperation = null;
 	
-	public TPCLog(String logPath, KVServer keyServer) {
+	/**
+	 * 
+	 * @param logPath 
+	 * @param kvServer Reference to the KVServer of this slave. Populated by
+	 * rebuildKeyServer() during start. 
+	 */
+	public TPCLog(String logPath, KVServer kvServer) {
 		this.logPath = logPath;
 		entries = null;
-		this.keyServer = keyServer;
+		this.kvServer = kvServer;
 	}
 
 	public ArrayList<KVMessage> getEntries() {
@@ -118,7 +128,9 @@ public class TPCLog {
 	}
 	
 	/**
-	 * Load log and rebuild by iterating over log entries 
+	 * Load log and rebuild by iterating over log entries
+	 * Set interruptedTpcOperation, if there is one (i.e., SlaveServer crashed
+	 * in the READY state)
 	 * @throws KVException
 	 */
 	public void rebuildKeyServer() throws KVException {
