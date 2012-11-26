@@ -50,7 +50,7 @@ public class Server {
 		// Create KVClientHandler
 		System.out.println("Binding Master:");
 		server = new SocketServer(InetAddress.getLocalHost().getHostAddress(), 8080);
-		NetworkHandler handler = new KVClientHandler(null, tpcMaster);
+		NetworkHandler handler = new KVClientHandler(tpcMaster);
 		server.addHandler(handler);
 		server.connect();
 		System.out.println("Starting Master");

@@ -268,7 +268,7 @@ public class AutoGrader {
 		public void run() {
 			TPCMaster tpcMaster = new TPCMaster(numSlaves);
 			KVServer kvServer = new KVServer(numSets, maxElemsPerSet);
-			NetworkHandler handler = new KVClientHandler(kvServer, tpcMaster);
+			NetworkHandler handler = new KVClientHandler(tpcMaster);
 
 			server = new SocketServer("localhost", 8080);
 			server.addHandler(handler);
