@@ -39,27 +39,24 @@ import java.net.Socket;
  *
  */
 public class KVClientHandler implements NetworkHandler {
-	private KVServer kvServer = null;
 	private ThreadPool threadpool = null;
     private TPCMaster tpcMaster = null;
 	
-	public KVClientHandler(KVServer keyserver, TPCMaster tpcMaster) {
-		initialize(keyserver, 1, tpcMaster);
+	public KVClientHandler(TPCMaster tpcMaster) {
+		initialize(1, tpcMaster);
 	}
 
-	public KVClientHandler(KVServer keyserver, int connections, TPCMaster tpcMaster) {
-		initialize(keyserver, connections, tpcMaster);
+	public KVClientHandler(int connections, TPCMaster tpcMaster) {
+		initialize(connections, tpcMaster);
 	}
 
-	private void initialize(KVServer kvServer, int connections, TPCMaster tpcMaster) {
-		this.kvServer = kvServer;
+	private void initialize(int connections, TPCMaster tpcMaster) {
 		threadpool = new ThreadPool(connections);
         this.tpcMaster = tpcMaster; 
 	}
 	
 
 	private class ClientHandler implements Runnable {
-		private KVServer kvServer = null;
 		private Socket client = null;
 		
 		@Override
@@ -67,8 +64,7 @@ public class KVClientHandler implements NetworkHandler {
 			// TODO: Implement Me!
 		}
 		
-		public ClientHandler(KVServer kvServer, Socket client) {
-			this.kvServer = kvServer;
+		public ClientHandler(Socket client) {
 			this.client = client;
 		}
 	}
@@ -78,7 +74,7 @@ public class KVClientHandler implements NetworkHandler {
 	 */
 	@Override
 	public void handle(Socket client) throws IOException {
-		Runnable r = new ClientHandler(kvServer, client);
+		Runnable r = new ClientHandler(client);
 		try {
 			threadpool.addToQueue(r);
 		} catch (InterruptedException e) {
