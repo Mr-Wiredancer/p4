@@ -63,19 +63,34 @@ public class KVClient implements KeyValueInterface {
 	}
 	
 	public void put(String key, String value) throws KVException {
-	    // TODO: Implement Me!
+	    // TODO: Implement Me from Project 3
 	    return;
 	}
-
+	
+	public void put(String key, String value, String tpcOpId, int timeout) throws KVException {
+		// TODO: Implement Me for Project 4
+		return;		
+	}
 
 	public String get(String key) throws KVException {
-	    // TODO: Implement Me!
+		// TODO: Implement Me from Project 3
 	    return null;
 	}
 	
+	public String get(String key, int timeout) throws KVException {
+		// TODO: Implement Me for Project 4
+		return null;
+	}
+	
 	public void del(String key) throws KVException {
-	    // TODO: Implement Me!
+		// TODO: Implement Me from Project 3
+		return;
 	}	
+	
+	public void del(String key, String tpcOpId, int timeout) throws KVException {
+		// TODO: Implement Me for Project 4
+		return;
+	}
 	
 	public void ignoreNext() throws KVException {
 	    // TODO: Implement Me!
