@@ -214,6 +214,20 @@ public class AutoGrader {
 			
 			TPCMasterHandler handler = new TPCMasterHandler(kvServer, slaveId, 1);
 			
+			// Create TPCLog
+            String logPath = slaveId + "@" + server.getHostname();
+            TPCLog tpcLog = new TPCLog(logPath, kvServer);
+            
+            // Load from disk and rebuild logs
+            try {
+				tpcLog.rebuildKeyServer();
+			} catch (KVException e2) {
+				// TODO: Handle this
+			}
+            
+            // Set log for TPCMasterHandler
+            handler.setTPCLog(tpcLog);
+            
 			server = new SocketServer("localhost");
 			server.addHandler(handler);
 			try {
