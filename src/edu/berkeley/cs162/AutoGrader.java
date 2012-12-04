@@ -118,10 +118,16 @@ public class AutoGrader {
 	private static int currentOp = 0;
 	private static TestOperation[] TEST_OPS = null;
 	
+	private static TPCMasterServerThread masterThread = null;
+	private static ServerThread[] serverThreads = null;
+	private static int curTestID = -1; // Currently running test
+	
+	private static ArrayList<Long> killAtFirstPhase = new ArrayList<Long>();
+	
 	private static HashMap<Long, Thread> slaveID2ThreadMap = new HashMap<Long, Thread>();
 	
 	public static void main(String args[]) {
-		testCase1();
+		runFirstPhaseFailureTest();
 	}
 	
 	private static void runTest(int numSets, int maxElemsPerSet, long storeDelay, int numSlaves, TestOperation[] testOps) 
@@ -183,6 +189,99 @@ public class AutoGrader {
 		// Cleanup
 		currentOp = 0;
 		TEST_OPS = null;
+		
+		// Give time to cleanup
+		delay(5000);
+	}
+	
+	
+	private static void runFirstPhaseFailureTest() 
+	{
+		int numSets = 2;
+		int maxElemsPerSet = 2;
+		
+		String three = "3";
+		String seven = "7";
+		
+		ArrayList<TestOperation> testOps = new ArrayList<TestOperation>();
+		
+		// PUT (3, 7)
+		testOps.add(new TestOperation(0, "PUT", three, seven, 0));
+		
+		// Wait 5 seconds; GET 3; Make it last for 10 seconds 
+		testOps.add(new TestOperation(5000, "GET", three, null, 10000));
+		
+		long storeDelay =  STORE_DELAY;
+		
+		// Initialize
+		currentOp = 0;
+		TEST_OPS = (TestOperation[]) testOps.toArray();
+		
+		curTestID = 1;
+		
+		// Set STORE_DELAY
+		STORE_DELAY = storeDelay;
+		
+		int numSlaves = 2;
+		long[] slaveIds = new long[numSlaves];
+		Random slaveIdGenerator = new Random();
+		
+		for (int i=0; i < numSlaves; i++) {
+			slaveIds[i] = slaveIdGenerator.nextInt();
+		}
+
+		
+		// Start TPC Master		
+		masterThread = startMasterServer(numSets, maxElemsPerSet, numSlaves);
+		serverThreads = new ServerThread[numSlaves];
+		
+		killAtFirstPhase = new ArrayList<Long>();
+		for (int i=0; i < slaveIds.length; i++) {
+			// Start kvServer
+			serverThreads[i] = startSlaveServer(numSets, maxElemsPerSet, slaveIds[i], "localhost");
+			if (killAtFirstPhase.size() == 0) {
+				killAtFirstPhase.add(new Long(slaveIds[i]));
+			}
+			
+			// Store mapping from slaveIDs to corresponding threads
+			slaveID2ThreadMap.put(slaveIds[i], serverThreads[i]);
+			
+			delay(500); 
+		}
+		
+		// Iterate over TestOperation[]
+		for (TestOperation testOp: testOps) {
+			
+			// Delay the operation
+			delay(testOp.delayBeforeOp);
+			
+			// Each TestOperation runs in its own thread
+			testOp.executeInThread();
+			
+			// Move to the next TestOperation
+			currentOp++;
+		}
+		
+		// Wait for threads to finish
+		for (TestOperation testOp: testOps) {
+			testOp.waitToFinish();
+		}
+
+		
+		for (int i=0; i < slaveIds.length; i++) {
+			// Stop SocketServer
+			serverThreads[i].stopServer();
+		}
+		
+		masterThread.stopServer();
+		
+		// Cleanup
+		currentOp = 0;
+		TEST_OPS = null;
+		
+		killAtFirstPhase = null;
+		masterThread = null;
+		serverThreads = null;
 		
 		// Give time to cleanup
 		delay(5000);
@@ -486,8 +585,14 @@ public class AutoGrader {
 	}
 
 	public static void agSecondPhaseStarted(long slaveID, KVMessage origMsg, boolean origAborted) {
-		// TODO Auto-generated method stub
-		
+		if (curTestID == 1 && !killAtFirstPhase.contains(new Long(slaveID))) {
+			Thread srvThread = slaveID2ThreadMap.get(new Long(slaveID));
+			for (int i=0; i < serverThreads.length; i++) {
+				if (serverThreads[i] == srvThread) {
+					serverThreads[i].run();
+				}
+			}
+		}		
 	}
 
 	public static void agSecondPhaseFinished(long slaveID, KVMessage origMsg, boolean origAborted) {
@@ -505,9 +610,12 @@ public class AutoGrader {
 		
 	}
 
+	@SuppressWarnings("deprecation")
 	public static void agTPCPutStarted(long slaveID, KVMessage msg, String key) {
-		// TODO Auto-generated method stub
-		
+		if (curTestID == 1 && killAtFirstPhase.contains(new Long(slaveID))) {
+			Thread srvThread = slaveID2ThreadMap.get(new Long(slaveID));
+			srvThread.stop();
+		}	
 	}
 
 	public static void agTPCPutFinished(long slaveID, KVMessage msg, String key) {
@@ -515,9 +623,12 @@ public class AutoGrader {
 		
 	}
 
+	@SuppressWarnings("deprecation")
 	public static void agTPCDelStarted(long slaveID, KVMessage msg, String key) {
-		// TODO Auto-generated method stub
-		
+		if (curTestID == 1 && killAtFirstPhase.contains(new Long(slaveID))) {
+			Thread srvThread = slaveID2ThreadMap.get(new Long(slaveID));
+			srvThread.stop();
+		}		
 	}
 
 	public static void agTPCDelFinished(long slaveID, KVMessage msg, String key) {
