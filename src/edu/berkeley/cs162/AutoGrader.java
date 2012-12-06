@@ -380,7 +380,6 @@ public class AutoGrader {
 
 		public void run() {
 			TPCMaster tpcMaster = new TPCMaster(numSlaves);
-			KVServer kvServer = new KVServer(numSets, maxElemsPerSet);
 			NetworkHandler handler = new KVClientHandler(tpcMaster);
 
 			server = new SocketServer("localhost", 8080);
@@ -390,8 +389,11 @@ public class AutoGrader {
 			} catch (IOException e) {
 				e.printStackTrace();
 				return;
-			}			
-
+			}	
+			System.out.println("Starting Registration Thread...");
+			tpcMaster.run();
+			System.out.println("Stopping Registration Thread...");
+			
 			System.out.println("Starting ServerThread...");
 			try {
 				server.run();
