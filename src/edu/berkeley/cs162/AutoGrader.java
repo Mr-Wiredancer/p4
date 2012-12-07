@@ -392,7 +392,6 @@ public class AutoGrader {
 			}	
 			System.out.println("Starting Registration Thread...");
 			tpcMaster.run();
-			System.out.println("Stopping Registration Thread...");
 			
 			System.out.println("Starting ServerThread...");
 			try {
@@ -400,7 +399,6 @@ public class AutoGrader {
 			} catch (IOException e) {
 				e.printStackTrace();
 			}
-			System.out.println("Stopping ServerThread...");
 		}
     }
 
@@ -497,24 +495,15 @@ public class AutoGrader {
 	}
 
 	public static void agCachePutDelay() {
-		if (TEST_OPS == null || currentOp > TEST_OPS.length) {
-			return;
-		}
-		delay(TEST_OPS[currentOp - 1].putDelay);
+
 	}
 
 	public static void agCacheGetDelay() {
-		if (TEST_OPS == null || currentOp > TEST_OPS.length) {
-			return;
-		}
-		delay(TEST_OPS[currentOp - 1].getDelay);
+
 	}
 	
 	public static void agCacheDelDelay() {
-		if (TEST_OPS == null || currentOp > TEST_OPS.length) {
-			return;
-		}
-		delay(TEST_OPS[currentOp - 1].delDelay);
+
 	}
 
 	/**
