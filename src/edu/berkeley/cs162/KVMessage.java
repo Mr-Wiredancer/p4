@@ -32,6 +32,7 @@ package edu.berkeley.cs162;
 
 import java.io.FilterInputStream;
 import java.io.InputStream;
+import java.io.Serializable;
 import java.net.Socket;
 
 
@@ -39,11 +40,13 @@ import java.net.Socket;
  * This is the object that is used to generate messages the XML based messages 
  * for communication between clients and servers. 
  */
-public class KVMessage {
+public class KVMessage implements Serializable {
+	
+	private static final long serialVersionUID = 6473128480951955693L;
+	
 	private String msgType = null;
 	private String key = null;
 	private String value = null;
-	private String status = null;
 	private String message = null;
     private String tpcOpId = null;    
 	
@@ -61,14 +64,6 @@ public class KVMessage {
 
 	public final void setValue(String value) {
 		this.value = value;
-	}
-
-	public final String getStatus() {
-		return status;
-	}
-
-	public final void setStatus(String status) {
-		this.status = status;
 	}
 
 	public final String getMessage() {
@@ -138,7 +133,6 @@ public class KVMessage {
 		this.msgType = kvm.msgType;
 		this.key = kvm.key;
 		this.value = kvm.value;
-		this.status = kvm.status;
 		this.message = kvm.message;
 		this.tpcOpId = kvm.tpcOpId;
 	}
@@ -155,5 +149,9 @@ public class KVMessage {
 	
 	public void sendMessage(Socket sock) throws KVException {
 	      // TODO: implement me
+	}
+	
+	public void sendMessage(Socket sock, int timeout) throws KVException {
+		// TODO: optional implement me
 	}
 }
