@@ -121,6 +121,34 @@ public class KVMessage implements Serializable {
      * c. "Message format incorrect" - if there message does not conform to the required specifications. Examples include incorrect message type. 
      */
 	public KVMessage(InputStream input) throws KVException {
+		/*
+		 * After Spring 2013, this will be taken out in favor of passing in the socket directly.
+		 */
+	     // TODO: implement me
+	}
+	
+	/**
+	 * 
+	 * @param sock Socket to receive from
+	 * @throws KVException if there is an error in parsing the message. The exception should be of type "resp and message should be :
+	 * a. "XML Error: Received unparseable message" - if the received message is not valid XML.
+	 * b. "Network Error: Could not receive data" - if there is a network error causing an incomplete parsing of the message.
+	 * c. "Message format incorrect" - if there message does not conform to the required specifications. Examples include incorrect message type. 
+	 */
+	public KVMessage(Socket sock) throws KVException {
+		
+	}
+
+	/**
+	 * 
+	 * @param sock Socket to receive from
+	 * @param timeout Give up after timeout milliseconds
+	 * @throws KVException if there is an error in parsing the message. The exception should be of type "resp and message should be :
+	 * a. "XML Error: Received unparseable message" - if the received message is not valid XML.
+	 * b. "Network Error: Could not receive data" - if there is a network error causing an incomplete parsing of the message.
+	 * c. "Message format incorrect" - if there message does not conform to the required specifications. Examples include incorrect message type. 
+	 */
+	public KVMessage(Socket sock, int timeout) throws KVException {
 	     // TODO: implement me
 	}
 	
@@ -152,6 +180,10 @@ public class KVMessage implements Serializable {
 	}
 	
 	public void sendMessage(Socket sock, int timeout) throws KVException {
+		/*
+		 * As was pointed out, setting a timeout when sending the message (while would still technically work),
+		 * is a bit silly. As such, this method will be taken out at the end of Spring 2013.
+		 */
 		// TODO: optional implement me
 	}
 }

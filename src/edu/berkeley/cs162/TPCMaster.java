@@ -60,6 +60,20 @@ public class TPCMaster {
 		public void handle(Socket client) throws IOException {
 			// implement me
 		}
+		
+		private class RegistrationHandler implements Runnable {
+			
+			private Socket client = null;
+
+			public RegistrationHandler(Socket client) {
+				this.client = client;
+			}
+
+			@Override
+			public void run() {
+				// implement me
+			}
+		}	
 	}
 	
 	/**
