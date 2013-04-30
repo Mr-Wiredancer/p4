@@ -32,13 +32,14 @@ package edu.berkeley.cs162;
 
 import java.io.IOException;
 import java.net.ServerSocket;
+import java.net.Socket;
 
 /** 
  * This is an generic class that should handle all TCP network connections 
  * arriving on a given unique (host, port) tuple. Ensure that this class 
  * remains generic by providing the connection handling logic in a NetworkHandler
  */
-public class SocketServer {
+public class SocketServer implements Debuggable{
 	String hostname;
 	int port;
 	NetworkHandler handler;
@@ -61,6 +62,12 @@ public class SocketServer {
 	 */
 	public void connect() throws IOException {
 	      // TODO: implement me
+		if (this.port > 0){
+			this.server = new ServerSocket(this.port);
+		}else{
+			this.server = new ServerSocket(0);
+			this.port = this.server.getLocalPort();
+		}
 	}
 	
 	public String getHostname() {
@@ -77,6 +84,10 @@ public class SocketServer {
 	 */
 	public void run() throws IOException {
 	      // TODO: implement me
+		while(true) {
+			Socket s = server.accept();
+			this.handler.handle(s);
+		}
 	}
 	
 	/** 
@@ -92,10 +103,19 @@ public class SocketServer {
 	 */
 	public void stop() {
 	      // TODO: implement me
+		//and cleanup
+		this.finalize();
 	}
 	
 	private void closeSocket() {
 	     // TODO: implement me
+	    try {
+	        this.server.close();
+	      } catch(IOException e) {
+	        //silence this exception
+	        DEBUG.debug("failed to close the socket");
+	        e.printStackTrace();
+	      }
 	}
 	
 	protected void finalize(){

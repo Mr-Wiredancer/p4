@@ -31,7 +31,12 @@
  */
 package edu.berkeley.cs162;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.PrintWriter;
 import java.net.Socket;
+import java.net.UnknownHostException;
 
 
 /**
@@ -39,7 +44,7 @@ import java.net.Socket;
  * objects implementing the {@link KeyValueInterface}.
  *
  */
-public class KVClient implements KeyValueInterface {
+public class KVClient implements KeyValueInterface,Debuggable {
 
 	private String server = null;
 	private int port = 0;
@@ -55,29 +60,278 @@ public class KVClient implements KeyValueInterface {
 	
 	private Socket connectHost() throws KVException {
 	    // TODO: Implement Me!  
-		return null;
+	    Socket socket;
+	    try {
+	      socket = new Socket(this.server, port);
+	      return socket;
+	      
+	    //could not connect to the server/port tuple	
+	    } catch (UnknownHostException e) {
+	      DEBUG.debug("cannot connect to "+this.server+" with port "+this.port);
+	      e.printStackTrace();
+	      throw new KVException(new KVMessage(KVMessage.RESPTYPE, "Network Error: Could not connect"));
+	    
+	    //could not create the socket
+	    } catch (IOException e) {
+	      DEBUG.debug("cannot create a socket with "+this.server+" with port "+this.port);
+	      e.printStackTrace();
+	      throw new KVException(new KVMessage(KVMessage.RESPTYPE, "Network Error: Could not create socket"));
+	    }
 	}
 	
 	private void closeHost(Socket sock) throws KVException {
 	    // TODO: Implement Me!
+		try {
+			sock.close();
+		} catch (IOException e) {
+			DEBUG.debug("cannot close "+this.server+" with port "+this.port);
+			e.printStackTrace();
+			throw new KVException(new KVMessage(KVMessage.RESPTYPE, "Unknown Error: Could not close the socket"));
+		}
 	}
 	
+	/**
+	 * Send a put <key, value> request to server
+	 * @param key
+	 * @param value
+	 * @throws KVException
+	 */
 	public void put(String key, String value) throws KVException {
-	    // TODO: Implement Me from Project 3
-	    return;
+		
+		//sanity check of key and value
+		CheckHelper.sanityCheckKeyValue(key, value);
+				
+		Socket sock = this.connectHost();
+		
+		//try to open inputstream and outputstream of the socket
+		OutputStream out = null;
+		InputStream in = null;
+		try {
+			out = sock.getOutputStream();
+		} catch (IOException e1) {
+			DEBUG.debug("cannot open outputstream");
+			e1.printStackTrace();
+			throw new KVException(new KVMessage(KVMessage.RESPTYPE, "Network Error: Could not send data"));
+		}
+		
+		try {
+			in = sock.getInputStream();
+		} catch (IOException e1) {
+			DEBUG.debug("cannot open inputstream");
+			e1.printStackTrace();
+			throw new KVException(new KVMessage(KVMessage.RESPTYPE, "Network Error: Could not receive data"));
+		}
+		
+		KVMessage msg = new KVMessage(KVMessage.PUTTYPE);
+		msg.setKey(key);
+		msg.setValue(value);
+				
+		PrintWriter writer = new PrintWriter(out, true);
+		writer.println(msg.toXML());
+		try {
+			sock.shutdownOutput();
+		} catch (IOException e) {
+			DEBUG.debug("could not close the outputstream");
+			e.printStackTrace();
+			throw new KVException(new KVMessage(KVMessage.RESPTYPE, "Unknown Error: Could not close the output stream of the socket"));
+		}
+		
+		DEBUG.debug(String.format("Put request of <%s, %s> was sent, waiting for response", key, value));
+		
+		KVMessage response = new KVMessage(in);
+		
+		try {
+			in.close();
+		} catch (IOException e) {
+			DEBUG.debug("could not close the input stream");
+			throw new KVException(new KVMessage(KVMessage.RESPTYPE, "Unknown Error: Could not close the input stream of the socket"));
+		}
+		
+		this.closeHost(sock);
+	
+		if (!response.getMessage().equals("Success")) {
+			DEBUG.debug("Put request failed. Error message from server: "+ response.getMessage());
+			throw new KVException(response);
+		} else {
+			DEBUG.debug("Put request succeeded");
+		}
 	}
 
 	public String get(String key) throws KVException {
-		// TODO: Implement Me from Project 3
-	    return null;
+		
+		//sanity check on key
+		CheckHelper.sanityCheckKey(key);
+		
+		Socket sock = this.connectHost();
+		
+		OutputStream out = null;
+		InputStream in = null;
+
+		try {
+			out = sock.getOutputStream();
+		} catch (IOException e1) {
+			DEBUG.debug("cannot open outputstream");
+			e1.printStackTrace();
+			throw new KVException(new KVMessage(KVMessage.RESPTYPE, "Network Error: Could not send data"));
+		}
+		
+		try {
+			in = sock.getInputStream();
+		} catch (IOException e1) {
+			DEBUG.debug("cannot open inputstream");
+			e1.printStackTrace();
+			throw new KVException(new KVMessage(KVMessage.RESPTYPE, "Network Error: Could not receive data"));
+		}
+		
+		KVMessage msg = new KVMessage(KVMessage.GETTYPE);
+		msg.setKey(key);
+		
+		PrintWriter writer = new PrintWriter(out, true);
+		writer.println(msg.toXML());
+		
+		try {
+			sock.shutdownOutput();
+		} catch (IOException e) {
+			DEBUG.debug("could not close output stream");
+			e.printStackTrace();
+			throw new KVException(new KVMessage(KVMessage.RESPTYPE, "Unknown Error: Could not close the output stream of the socket"));
+		}
+				
+		DEBUG.debug(String.format("Get request of <%s> was sent, waiting for response", key));
+		
+		KVMessage response = new KVMessage(in);
+		
+		try {
+			in.close();
+		} catch (IOException e) {
+			DEBUG.debug("cannot close input stream");
+			e.printStackTrace();
+			throw new KVException(new KVMessage(KVMessage.RESPTYPE, "Unknown Error: Could not close the input stream of the socket"));
+		}
+		this.closeHost(sock);
+		
+		if (response.getMessage()!=null) {
+			DEBUG.debug("Get request failed. Error message from server: "+ response.getMessage());
+			throw new KVException(response);
+		} else {
+			DEBUG.debug("Get request succeeded. Value is "+response.getValue());
+			return response.getValue(); 
+		}
 	}
 	
 	public void del(String key) throws KVException {
-		// TODO: Implement Me from Project 3
-		return;
-	}	
+		CheckHelper.sanityCheckKey(key);
+		
+		Socket sock = this.connectHost();
+		
+		OutputStream out = null;
+		InputStream in = null;
+		try {
+			out = sock.getOutputStream();
+		} catch (IOException e1) {
+			DEBUG.debug("Could not open outputstream");
+			e1.printStackTrace();
+			throw new KVException(new KVMessage(KVMessage.RESPTYPE, "Network Error: Could not send data"));
+		}
+		
+		try {
+			in = sock.getInputStream();
+		} catch (IOException e1) {
+			DEBUG.debug("Could not open input stream");
+			e1.printStackTrace();
+			throw new KVException(new KVMessage(KVMessage.RESPTYPE, "Network Error: Could not receive data"));
+		}
+		
+		KVMessage msg = new KVMessage(KVMessage.DELTYPE);
+		msg.setKey(key);
+		
+		PrintWriter writer = new PrintWriter(out, true);
+		writer.println(msg.toXML());
+
+		try {
+			sock.shutdownOutput();
+		} catch (IOException e) {
+			DEBUG.debug("could not close output stream");
+			e.printStackTrace();
+			throw new KVException(new KVMessage(KVMessage.RESPTYPE, "Unknown Error: Could not close the output stream of the socket"));
+		}
+		
+		DEBUG.debug(String.format("Del request of <%s> was sent, waiting for response", key));
+		
+		KVMessage response = new KVMessage(in);
+		
+		try {
+			in.close();
+		} catch (IOException e) {
+			DEBUG.debug("cannot close input stream");
+			e.printStackTrace();
+			throw new KVException(new KVMessage(KVMessage.RESPTYPE, "Unknown Error: Could not close the input stream of the socket"));
+		}
+		
+		this.closeHost(sock);
+	
+		if (!response.getMessage().equals("Success")){
+			DEBUG.debug("Del request failed. Error message from server: "+ response.getMessage());
+			throw new KVException(response);
+		} else {
+			DEBUG.debug("Del request succeeded");
+		}
+	}
 	
 	public void ignoreNext() throws KVException {
 	    // TODO: Implement Me!
+		Socket sock = this.connectHost();
+		
+		OutputStream out = null;
+		InputStream in = null;
+		try {
+			out = sock.getOutputStream();
+		} catch (IOException e1) {
+			DEBUG.debug("Could not open outputstream");
+			e1.printStackTrace();
+			throw new KVException(new KVMessage(KVMessage.RESPTYPE, "Network Error: Could not send data"));
+		}
+		
+		try {
+			in = sock.getInputStream();
+		} catch (IOException e1) {
+			DEBUG.debug("Could not open input stream");
+			e1.printStackTrace();
+			throw new KVException(new KVMessage(KVMessage.RESPTYPE, "Network Error: Could not receive data"));
+		}
+		
+		KVMessage msg = new KVMessage(KVMessage.IGNORENEXTTYPE);
+		
+		PrintWriter writer = new PrintWriter(out, true);
+		writer.println(msg.toXML());
+
+		try {
+			sock.shutdownOutput();
+		} catch (IOException e) {
+			DEBUG.debug("could not close output stream");
+			e.printStackTrace();
+			throw new KVException(new KVMessage(KVMessage.RESPTYPE, "Unknown Error: Could not close the output stream of the socket"));
+		}
+		
+		DEBUG.debug(String.format("ignoreNext request was sent, waiting for response"));
+		
+		KVMessage response = new KVMessage(in);
+		
+		try {
+			in.close();
+		} catch (IOException e) {
+			DEBUG.debug("cannot close input stream");
+			e.printStackTrace();
+			throw new KVException(new KVMessage(KVMessage.RESPTYPE, "Unknown Error: Could not close the input stream of the socket"));
+		}
+		
+		this.closeHost(sock);
+	
+		if (!response.getMessage().equals("Success")){
+			DEBUG.debug("IgnoreNext request failed. Error message from server: "+ response.getMessage());
+			throw new KVException(response);
+		} else {
+			DEBUG.debug("IgnoreNext request succeeded");
+		}
 	}
 }

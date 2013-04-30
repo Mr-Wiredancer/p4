@@ -30,8 +30,30 @@
  *  SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 package edu.berkeley.cs162;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.util.Dictionary;
+import java.util.Enumeration;
 import java.util.Hashtable;
+
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
+import javax.xml.transform.Transformer;
+import javax.xml.transform.TransformerConfigurationException;
+import javax.xml.transform.TransformerException;
+import javax.xml.transform.TransformerFactory;
+import javax.xml.transform.dom.DOMSource;
+import javax.xml.transform.stream.StreamResult;
+
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
+import org.xml.sax.SAXException;
 
 
 /**
@@ -40,7 +62,7 @@ import java.util.Hashtable;
  * system using a manual delay.
  *
  */
-public class KVStore implements KeyValueInterface {
+public class KVStore implements KeyValueInterface, Debuggable {
 	private Dictionary<String, String> store 	= null;
 	
 	public KVStore() {
@@ -51,26 +73,42 @@ public class KVStore implements KeyValueInterface {
 		store = new Hashtable<String, String>();
 	}
 	
-	public void put(String key, String value) throws KVException {
+	/**
+	 * Put the <key, value> pair in the store. Replace the old value if key is existent. 
+	 */
+	public synchronized void put(String key, String value) throws KVException {
 		AutoGrader.agStorePutStarted(key, value);
 		
+		DEBUG.debug("Store receives a put request of key "+key+" and value "+value);
 		try {
 			putDelay();
+			
+			//sanity check on key and value
+			CheckHelper.sanityCheckKeyValue(key, value);
+			
 			store.put(key, value);
 		} finally {
 			AutoGrader.agStorePutFinished(key, value);
 		}
 	}
 	
-	public String get(String key) throws KVException {
+	/**
+	 * 
+	 */
+	public synchronized String get(String key) throws KVException {
 		AutoGrader.agStoreGetStarted(key);
 		
+		DEBUG.debug("store receives a get request of key "+key);
 		try {
 			getDelay();
+			
+			//sanity check on key
+			CheckHelper.sanityCheckKey(key);
+			
 			String retVal = this.store.get(key);
 			if (retVal == null) {
-			    KVMessage msg = new KVMessage("resp", "key \"" + key + "\" does not exist in store");
-			    throw new KVException(msg);
+				KVMessage msg = new KVMessage(KVMessage.RESPTYPE, "Does not exist");
+				throw new KVException(msg);
 			}
 			return retVal;
 		} finally {
@@ -78,17 +116,23 @@ public class KVStore implements KeyValueInterface {
 		}
 	}
 	
-	public void del(String key) throws KVException {
+	/**
+	 * Delete the value which is mapped to key. If the key does not exist, throw a KVException.
+	 */
+	public synchronized void del(String key) throws KVException {
 		AutoGrader.agStoreDelStarted(key);
 
+		DEBUG.debug("store receives a del request of key "+key);
 		try {
 			delDelay();
-			if(key != null)
-				this.store.remove(key);
-			else {
-			    KVMessage msg = new KVMessage("resp", "key \"" + key + "\" does not exist in store");
-			    throw new KVException(msg);
-			}
+			
+			//sanity check on key
+			CheckHelper.sanityCheckKey(key);
+			
+			String val = this.store.remove(key);
+			if (val==null)
+				throw new KVException(new KVMessage(KVMessage.RESPTYPE, "Does not exist"));
+		
 		} finally {
 			AutoGrader.agStoreDelFinished(key);
 		}
@@ -106,16 +150,216 @@ public class KVStore implements KeyValueInterface {
 		AutoGrader.agStoreDelay();
 	}
 	
-    public String toXML() throws KVException {
-        // TODO: implement me
-        return null;
-    }        
-
-    public void dumpToFile(String fileName) throws KVException {
-        // TODO: implement me
+  public synchronized String toXML() throws KVException {
+    return this.storeToXML();
+  }        
+  
+  /**
+   * helper method to output store as XML;
+   * @return XML representation of store
+   */
+  private String storeToXML() {
+    DocumentBuilderFactory docFactory = DocumentBuilderFactory.newInstance();
+    DocumentBuilder docBuilder = null;
+    try {
+      docBuilder = docFactory.newDocumentBuilder();
+    } catch (ParserConfigurationException e) {
+      //this should not happen
+      DEBUG.debug("this should not happen");
+      e.printStackTrace();
+      return ""; //return so that the rest doesn't break 
     }
 
-    public void restoreFromFile(String fileName) throws KVException{
-        // TODO: implement me
+    // root element
+    Document doc = docBuilder.newDocument();
+    Element rootElement = doc.createElement("KVStore");
+    doc.setXmlStandalone(true);
+    doc.appendChild(rootElement);
+    
+    Enumeration<String> keys = this.store.keys();
+    while (keys.hasMoreElements()) {
+      String key = (String)keys.nextElement();
+      String val = this.store.get(key);
+      
+      Element pairElement = doc.createElement("KVPair");
+      
+      Element keyElement = doc.createElement("Key");
+      keyElement.appendChild(doc.createTextNode(key));
+      
+      Element valueElement = doc.createElement("Value");
+      valueElement.appendChild(doc.createTextNode(val));
+      
+      pairElement.appendChild(keyElement);
+      pairElement.appendChild(valueElement);
+
+      rootElement.appendChild(pairElement);
     }
+    
+    TransformerFactory transformerFactory = TransformerFactory.newInstance();
+    Transformer transformer = null;
+    try {
+      transformer = transformerFactory.newTransformer();
+    } catch (TransformerConfigurationException e) {
+      //this should not happen too
+      DEBUG.debug("this should not happen");
+      e.printStackTrace();
+      return ""; //return so that the rest doesn't break 
+    }
+    
+    StringWriter writer = new StringWriter();
+
+    DOMSource  source= new DOMSource(doc);
+    StreamResult result = new StreamResult(writer);
+    
+    try {
+      transformer.transform(source, result);
+    } catch (TransformerException e) {
+      //this should not happen
+      DEBUG.debug("this should not happen");
+      e.printStackTrace();
+      return ""; //return so that the rest doesn't break 
+    }
+    
+    String xml = writer.toString();
+    return xml;
+  }
+
+    /**
+     * Dump the current state of store to corresponding file. This does not change the state of the store
+     * @param fileName 
+     */
+    public synchronized void dumpToFile(String fileName) {
+      try {
+      PrintWriter out = new PrintWriter(fileName);
+      out.print(this.storeToXML());
+      out.close();
+    } catch (FileNotFoundException e) {
+      DEBUG.debug("file not found and couldnot create the file");
+      e.printStackTrace();
+    }
+  }
+
+  /**
+   * STRICTLY checks the XML. The XML needs to have exactly the number of attributes and nodes and format as on the spec to pass the test
+   * @param doc
+   * @return return the new store dictionary
+   * @throws KVException
+   */
+  private Dictionary<String, String> checkDocStruture(Document doc) throws KVException {
+    NodeList nodes = doc.getChildNodes();
+    
+    if (nodes.getLength()!=1) {
+      throw new KVException( new KVMessage (KVMessage.RESPTYPE, "IO Error"));
+    }
+    
+    if (!doc.getFirstChild().getNodeName().equals("KVStore")) {
+      throw new KVException( new KVMessage (KVMessage.RESPTYPE, "IO Error"));
+    }
+    
+    return checkStoreNodeStructure(doc.getFirstChild());	
+  }
+  
+  private Dictionary<String,String> checkStoreNodeStructure(Node storeNode) throws KVException {
+    Dictionary<String, String> newStore = new Hashtable<String, String>();
+    
+    NodeList nodes = storeNode.getChildNodes();
+    
+    for (int i = 0; i < storeNode.getChildNodes().getLength(); i++){
+      Node pair = nodes.item(i);
+      if (!pair.getNodeName().equals("KVPair"))
+        throw new KVException( new KVMessage (KVMessage.RESPTYPE, "IO Error"));
+    
+      checkPairNodeStructure(pair, newStore);
+    }
+    
+    return newStore;
+  }
+  
+  private void checkPairNodeStructure(Node pairNode, Dictionary<String, String> store) throws KVException {
+    NodeList nodes = pairNode.getChildNodes();
+
+    if (nodes.getLength()!=2){
+      throw new KVException( new KVMessage (KVMessage.RESPTYPE, "IO Error"));
+    }
+    
+    Node keyNode = nodes.item(0);
+    if (!keyNode.getNodeName().equals("Key"))
+      throw new KVException( new KVMessage (KVMessage.RESPTYPE, "IO Error"));
+    String key = checkKeyNodeStructure(keyNode);
+    
+    Node valNode = nodes.item(1);
+    if (!valNode.getNodeName().equals("Value"))
+      throw new KVException( new KVMessage (KVMessage.RESPTYPE, "IO Error"));
+    String value = checkValNodeStructure(valNode);
+    
+    store.put(key, value);
+  }
+  
+  private String checkKeyNodeStructure(Node keyNode) throws KVException {
+    NodeList nodes = keyNode.getChildNodes();
+    
+    if (nodes.getLength()!=1 || nodes.item(0).getNodeType() != Document.TEXT_NODE)
+      throw new KVException( new KVMessage (KVMessage.RESPTYPE, "IO Error"));
+
+    String key = nodes.item(0).getTextContent();
+    
+	CheckHelper.sanityCheckKey(key);
+	
+    return key;
+  }
+  
+  private String checkValNodeStructure(Node valNode) throws KVException {
+    NodeList nodes = valNode.getChildNodes();
+  
+    if (nodes.getLength()!=1
+        || nodes.item(0).getNodeType()!=Document.TEXT_NODE)
+      throw new KVException( new KVMessage (KVMessage.RESPTYPE, "IO Error"));
+
+    String value = nodes.item(0).getTextContent();
+    
+	CheckHelper.sanityCheckValue(value);
+	
+    return value;
+  }    
+  
+  /**
+   * restore the state of the store to the one indicated by the file
+   * @param fileName 
+   * @throws KVException if file could not be opened or there is error when parsing the XML
+   */
+  public synchronized void restoreFromFile(String fileName) {
+    //delete the original store whether the restore succeeds or not
+    try {
+      this.store = new Hashtable<String, String>();
+      File fXmlFile = new File(fileName);
+      DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
+      DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();
+      Document doc = dBuilder.parse(fXmlFile);
+     
+      doc.getDocumentElement().normalize();
+      
+      Dictionary<String, String> newStore = checkDocStruture(doc);    		
+      
+      this.store = newStore;
+    
+    } catch (ParserConfigurationException e) {
+      //this should not happen
+      DEBUG.debug("this should not happen");
+      e.printStackTrace();
+    
+    } catch (SAXException e) {
+      //not a valid XML
+      DEBUG.debug("this is not a valid xml");
+      e.printStackTrace();
+    
+    } catch (IOException e) {
+      //io error
+      DEBUG.debug("io error");
+      e.printStackTrace();
+    
+    } catch (KVException e) {
+      DEBUG.debug(e.getMsg().getMessage());
+      e.printStackTrace();
+    }
+  }
 }
