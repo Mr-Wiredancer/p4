@@ -34,6 +34,9 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.Socket;
 import java.net.UnknownHostException;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock.WriteLock;
 
 /**
  * Implements NetworkHandler to handle 2PC operation requests from the Master/
@@ -49,6 +52,7 @@ public class TPCMasterHandler implements NetworkHandler {
 	
 	// Used to handle the "ignoreNext" message
 	private boolean ignoreNext = false;
+	private WriteLock ignoreNextLock = new ReentrantReadWriteLock().writeLock();
 	
 	// States carried from the first to the second phase of a 2PC operation
 	private KVMessage originalMessage = null;
@@ -86,6 +90,14 @@ public class TPCMasterHandler implements NetworkHandler {
 			// Receive message from client
 			// Implement me
 			KVMessage msg = null;
+			
+		
+			try {
+				msg = new KVMessage(this.client);
+			} catch (KVException e) {
+				// TODO Auto-generated catch block
+				return;
+			}
 
 			// Parse the message and do stuff 
 			String key = msg.getKey();
@@ -101,10 +113,17 @@ public class TPCMasterHandler implements NetworkHandler {
 			} 
 			else if (msg.getMsgType().equals("ignoreNext")) {
 				// Set ignoreNext to true. PUT and DEL handlers know what to do.
-				// Implement me
+				TPCMasterHandler.this.ignoreNextLock.lock();
+				TPCMasterHandler.this.ignoreNext = true;
+				TPCMasterHandler.this.ignoreNextLock.unlock();
 				
 				// Send back an acknowledgment
-				// Implement me
+				try {
+					new KVMessage(KVMessage.RESPTYPE, "Success").sendMessage(this.client);
+				} catch (KVException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();	
+				}
 			}
 			else if (msg.getMsgType().equals("commit") || msg.getMsgType().equals("abort")) {
 				// Check in TPCLog for the case when SlaveServer is restarted

@@ -55,35 +55,97 @@ public class KVServer implements KeyValueInterface {
 		AutoGrader.registerKVServer(dataStore, dataCache);
 	}
 	
+	/**
+	 * Tries to put <key, value> in the server. First call cache's put(will replace if necessary) and then server's put.
+	 * @param key
+	 * @param value
+	 * @throws KVException when key or value or both didn't pass sanity check. 
+	 */
 	public void put(String key, String value) throws KVException {
 		// Must be called before anything else
 		AutoGrader.agKVServerPutStarted(key, value);
+	
+		try {
+			//sanity check on key and value
+			CheckHelper.sanityCheckKeyValue(key, value);
+			
+			this.dataCache.put(key, value);
+			this.dataStore.put(key, value);
 
-		// TODO: implement me
-
-		// Must be called before returning
-		AutoGrader.agKVServerPutFinished(key, value);
+		} finally {
+			AutoGrader.agKVServerPutFinished(key, value);
+		}
 	}
 	
+	/**
+	 * Tries to get the value mapped to key. First cal cache's GET and then store's GET. Will do an entry replacement if necessary
+	 * @param key
+	 * @throws KVException when the key is not in store. Or key doesn't pass sanity check.
+	 */
 	public String get (String key) throws KVException {
 		// Must be called before anything else
 		AutoGrader.agKVServerGetStarted(key);
+		
+		try {
+			//sanity check on key
+			CheckHelper.sanityCheckKey(key);
+			
+			//try to get the value in cache
+			String cacheValue = this.dataCache.get(key);
+			if (cacheValue!=null) {
+				return cacheValue; //directly return the value if the value is in cache
+			}
+			
+			//key is not in cache, try to get the value in the store
+			String storeResult = this.dataStore.get(key); //this will throw KVException if key is not in store
+			this.dataCache.replace(key, storeResult);
+			return storeResult;
 
-		// TODO: implement me
-
-		// Must be called before returning
-		AutoGrader.agKVServerGetFinished(key);
-		return null;
+		} finally {
+			AutoGrader.agKVServerGetFinished(key);
+		}
 	}
 	
+	/**
+	 * Delete the value mapped to key. It calles the cache's DEL and then store's DEL
+	 * @param key
+	 * @throws KVException when key is not in store. Or key doesn't pass sanity check.
+	 */
 	public void del (String key) throws KVException {
 		// Must be called before anything else
 		AutoGrader.agKVServerDelStarted(key);
 
-		// TODO: implement me
+		try {
+			//sanity check on key
+			CheckHelper.sanityCheckKey(key);
+			
+			this.dataCache.del(key);
+			this.dataStore.del(key); //will throw KVException if is not in  
+		
+		} finally {
+			AutoGrader.agKVServerDelFinished(key);
+		}
+	}
+	
+	/**
+	 * Only for testing
+	 * @return XML representation of store
+	 */
+	public String dumpStore() {
+		try {
+			return this.dataStore.toXML();
+		} catch (KVException e) {
+			e.printStackTrace();
+		}
+		return null;
+	}
 
-		// Must be called before returning
-		AutoGrader.agKVServerDelFinished(key);
+	/**
+	 * Only for testing
+	 * @return XML representation of cache
+	 */
+	public String dumpCache(){
+		return this.dataCache.toXML();
 	}
 	
 	public boolean hasKey (String key) throws KVException {

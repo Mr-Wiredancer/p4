@@ -28,22 +28,51 @@
  *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  *  SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+
 package edu.berkeley.cs162;
 
-public class ThreadPool {
+import java.util.LinkedList;
+import java.util.concurrent.locks.*;
+
+public class ThreadPool implements Debuggable{
 	/**
 	 * Set of threads in the threadpool
 	 */
-	protected Thread threads[] = null;
-
+	protected WorkerThread threads[] = null;
+	LinkedList<Runnable> jobQueue = new LinkedList<Runnable>();
+	private ReadWriteLock lock = new ReentrantReadWriteLock();
+	private Lock jobQueueLock = lock.writeLock();
+	
+	public Lock cvLock = new ReentrantLock();
+	public Condition jobQueueNotEmpty = cvLock.newCondition();
+	
 	/**
 	 * Initialize the number of threads required in the threadpool. 
 	 * 
 	 * @param size  How many threads in the thread pool.
 	 */
-	public ThreadPool(int size)
-	{      
-	    // TODO: implement me
+	public ThreadPool(int size) {      
+		threads = new WorkerThread[size];
+		initializeThreads();
+	}
+	
+	public void cleanup() {
+		for (WorkerThread t : threads) {
+			t.signalFinish();
+		}
+	}
+	
+	/**
+	 * create all threads and let them run
+	 */
+	private void initializeThreads() {
+		for (int i = 0; i < threads.length; i++) {
+			threads[i] = new WorkerThread(this);
+		}
+		
+		for (WorkerThread w : this.threads) {
+			w.start();
+		}
 	}
 
 	/**
@@ -52,9 +81,15 @@ public class ThreadPool {
 	 * @param r job that has to be executed asynchronously
 	 * @throws InterruptedException 
 	 */
-	public void addToQueue(Runnable r) throws InterruptedException
-	{
-	      // TODO: implement me
+	public void addToQueue(Runnable r) throws InterruptedException {
+		jobQueueLock.lock();	
+		jobQueue.add(r);
+//		Test.addJobQueue((r).hashCode()); //for testing
+		jobQueueLock.unlock();
+		
+		cvLock.lock();
+		this.jobQueueNotEmpty.signal();
+		cvLock.unlock();
 	}
 	
 	/** 
@@ -62,31 +97,60 @@ public class ThreadPool {
 	 * @return A runnable task that has to be executed
 	 * @throws InterruptedException 
 	 */
-	public synchronized Runnable getJob() throws InterruptedException {
-	      // TODO: implement me
-	    return null;
+	public Runnable getJob() throws InterruptedException {
+		while (true) {
+			Runnable r = null;
+			jobQueueLock.lock();
+			if (!jobQueue.isEmpty())
+				r = jobQueue.removeFirst();
+			jobQueueLock.unlock();
+			
+			if (r==null) {
+				cvLock.lock();
+				jobQueueNotEmpty.await();
+				cvLock.unlock();
+			} else {
+				return r;
+			}
+		}
 	}
 }
 
 /**
  * The worker threads that make up the thread pool.
  */
-class WorkerThread extends Thread {
+class WorkerThread extends Thread implements Debuggable {
 	/**
 	 * The constructor.
 	 * 
 	 * @param o the thread pool 
 	 */
-	WorkerThread(ThreadPool o)
-	{
-	     // TODO: implement me
+	private static int workerThreadCounter = 0;
+	private ThreadPool o;
+	private boolean run = true;
+	
+	WorkerThread(ThreadPool o) {
+		this.o = o;
+		this.setName("WorkerThread"+WorkerThread.workerThreadCounter++);
 	}
 
 	/**
 	 * Scan for and execute tasks.
 	 */
-	public void run()
-	{
-	      // TODO: implement me
+	public void run() {
+		while (run){
+			Runnable r = null;
+			try {
+				r = o.getJob(); // would wait until it gets a job
+				r.run();
+			} catch (InterruptedException e) {
+				//ignore this exception
+				e.printStackTrace();
+			}
+		}
+	}
+	
+	public void signalFinish() {
+		this.run = false;
 	}
 }

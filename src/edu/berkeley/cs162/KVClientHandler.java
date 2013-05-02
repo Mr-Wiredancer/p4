@@ -31,6 +31,7 @@
 package edu.berkeley.cs162;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.Socket;
 
 /**
@@ -56,16 +57,158 @@ public class KVClientHandler implements NetworkHandler {
 	}
 	
 
-	private class ClientHandler implements Runnable {
+	private class ClientHandler implements Runnable, Debuggable {
 		private Socket client = null;
+		private TPCMaster tpcMaster = null;
+		
+		private void handlePut(KVMessage msg){
+			try {
+				this.tpcMaster.performTPCOperation(msg, true);
+			} catch (KVException e) {
+				try {
+					e.getMsg().sendMessage(this.client);
+				} catch (KVException e1) {
+					DEBUG.debug("error happens when trying to send back error message");
+					e1.printStackTrace();
+				}
+				return;
+			}
+			
+			try {
+				KVMessage successMsg = new KVMessage(KVMessage.RESPTYPE, "Success");
+				successMsg.sendMessage(this.client);
+
+			} catch(KVException e) {
+				DEBUG.debug("error happens when trying to send back success message");
+				e.printStackTrace();
+			}
+		}
+		
+		private void handleDel(KVMessage msg){
+			try {
+				this.tpcMaster.performTPCOperation(msg, false);
+			} catch (KVException e) {
+				try {
+					e.getMsg().sendMessage(this.client);
+				} catch (KVException e1) {
+					DEBUG.debug("error happens when trying to send back error message");
+					e1.printStackTrace();
+				}
+				return;			
+			}
+			
+			try {
+				KVMessage successMsg = new KVMessage(KVMessage.RESPTYPE, "Success");
+				successMsg.sendMessage(this.client);
+
+			} catch(KVException e) {
+				DEBUG.debug("error happens when trying to send back success message");
+				e.printStackTrace();
+			}
+		}
+		
+		private void handleGet(KVMessage msg){
+			String val = null;
+			try {
+				val = this.tpcMaster.handleGet(msg);
+			} catch (KVException e) {
+				try {
+					e.getMsg().sendMessage(this.client);
+				} catch (KVException e1) {
+					DEBUG.debug("error happens when trying to send back error message");
+					e1.printStackTrace();
+				}
+				return;
+			}
+		
+			try{
+				//successful get
+				assert(val!=null);
+				
+				KVMessage successMsg = null;
+				try {
+					successMsg = new KVMessage(KVMessage.RESPTYPE);
+				} catch (KVException e) {
+					//silence this exception
+					DEBUG.debug("this error should not happen");
+					e.printStackTrace();
+					return;
+				}
+				successMsg.setKey(msg.getKey());
+				successMsg.setValue(val);
+				successMsg.sendMessage(this.client);
+
+			}catch (KVException e){
+				DEBUG.debug("error happens when trying to send back success message");
+				e.printStackTrace();
+			}
+		}
 		
 		@Override
 		public void run() {
-			// TODO: Implement Me!
+			if (!this.tpcMaster.hasFinishedRegistration()){
+				try {
+					new KVMessage(KVMessage.RESPTYPE, "Unknown Error: the master server has not finished registration yet").sendMessage(this.client);
+				} catch (KVException e1) {
+					DEBUG.debug("error happens when trying to send back error message");
+					e1.printStackTrace();
+				}
+				return;
+			}
+			
+			
+			try {
+				    
+				KVMessage msg = new KVMessage(this.client);
+
+				DEBUG.debug(this.hashCode()+msg.toXML());
+				//get request
+				if (msg.getMsgType().equals(KVMessage.GETTYPE)) {
+					DEBUG.debug("Get a get request of key "+msg.getKey());
+					handleGet(msg);
+				
+				//put request	
+				} else if (msg.getMsgType().equals(KVMessage.PUTTYPE)) {
+					DEBUG.debug(String.format("Get a put request of key %s and value %s", msg.getKey(), msg.getValue()));
+					handlePut(msg);
+					
+				//del request	
+				} else if (msg.getMsgType().equals(KVMessage.DELTYPE)) {
+					DEBUG.debug("Get a del request of key "+msg.getKey());
+					handleDel(msg);
+			
+				//resp request
+				} else {
+					try {
+						new KVMessage(KVMessage.RESPTYPE, "Unknown Error: server received a response message").sendMessage(this.client);
+					} catch (KVException e1) {
+						DEBUG.debug("error happens when trying to send back error message");
+						e1.printStackTrace();
+					}
+				}
+			} catch (KVException e) {
+				//exception when getting KVMessage from the socket's input stream
+				try {
+					e.getMsg().sendMessage(this.client);
+				} catch (KVException e1) {
+					DEBUG.debug("error happens when trying to send back error message");
+					e1.printStackTrace();
+				}
+//			} catch (IOException e) {
+//				DEBUG.debug("could not receive data");
+//				e.printStackTrace();
+//				try {
+//					new KVMessage(KVMessage.RESPTYPE, "Network Error: Could not receive data").sendMessage(this.client);
+//				} catch (KVException e1) {
+//					DEBUG.debug("error happens when trying to send back error message");
+//					e1.printStackTrace();
+//				}
+			}
 		}
 		
 		public ClientHandler(Socket client) {
 			this.client = client;
+			this.tpcMaster = KVClientHandler.this.tpcMaster;
 		}
 	}
 	

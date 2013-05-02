@@ -61,7 +61,6 @@ public class SocketServer implements Debuggable{
 	 * @throws IOException
 	 */
 	public void connect() throws IOException {
-	      // TODO: implement me
 		if (this.port > 0){
 			this.server = new ServerSocket(this.port);
 		}else{
@@ -83,7 +82,6 @@ public class SocketServer implements Debuggable{
 	 * @throws IOException if there is a network error (for instance if the socket is inadvertently closed) 
 	 */
 	public void run() throws IOException {
-	      // TODO: implement me
 		while(true) {
 			Socket s = server.accept();
 			this.handler.handle(s);
@@ -108,7 +106,6 @@ public class SocketServer implements Debuggable{
 	}
 	
 	private void closeSocket() {
-	     // TODO: implement me
 	    try {
 	        this.server.close();
 	      } catch(IOException e) {

@@ -133,6 +133,11 @@ public class KVMessage implements Serializable, Debuggable {
 	    public void close() {} // ignore close
 	}
 	
+	/**
+	 * See if the msgType is an acceptable type
+	 * @param msgType
+	 * @return true if the msgType is known; false otherwise
+	 */
 	private boolean isAcceptableMsgType(String msgType){
 		return !msgType.equals(KVMessage.PUTTYPE) 
 				&& !msgType.equals(KVMessage.GETTYPE)
@@ -183,91 +188,91 @@ public class KVMessage implements Serializable, Debuggable {
 	
 	//initiate the KVMessage from a InputStream object
 	private void msgHelper(InputStream input) throws KVException{
-		  try {
-		        DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
-		        DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();
-		        Document doc = dBuilder.parse(input);
-		        
-		        doc.getDocumentElement().normalize();
-		        
-		        //check doc structure
-		        checkDocStructure(doc);
-		        
-		        Node message = doc.getFirstChild();
-		        
-		        String type = checkKVMessageStructure(message);
-		        this.msgType = type;
-		        
-		        NodeList nodes = message.getChildNodes();
-		        //put or 2pc put
-		        if (type.equals(KVMessage.PUTTYPE)) {
-		          checkKeyNode(nodes.item(0));
-		          checkValNode(nodes.item(1));
-		          if (nodes.item(2)!=null){
-		        	  checkTPCOpIdNode(nodes.item(2));
-		          }
-		        } else if(type.equals(KVMessage.GETTYPE)) {
-		          checkKeyNode(nodes.item(0));
-		        
-		          //del or 2pc del
-		        } else if(type.equals(KVMessage.DELTYPE)) {
-		          checkKeyNode(nodes.item(0));
-		          if (nodes.item(1)!=null){
-		        	  this.checkTPCOpIdNode(nodes.item(1));
-		          }
-		         
-		        } else if (type.equals(KVMessage.RESPTYPE)){
-		          if (nodes.getLength() == 1) {
-		            checkMessageNode(nodes.item(0));
-		          } else if(nodes.getLength() == 2) {
-		            checkKeyNode(nodes.item(0));
-		            checkValNode(nodes.item(1));
-		          } else {
+	  try {
+	        DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
+	        DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();
+	        Document doc = dBuilder.parse(input);
+	        
+	        doc.getDocumentElement().normalize();
+	        
+	        //check doc structure
+	        checkDocStructure(doc);
+	        
+	        Node message = doc.getFirstChild();
+	        
+	        String type = checkKVMessageStructure(message);
+	        this.msgType = type;
+	        
+	        NodeList nodes = message.getChildNodes();
+	        //put or 2pc put
+	        if (type.equals(KVMessage.PUTTYPE)) {
+	          checkKeyNode(nodes.item(0));
+	          checkValNode(nodes.item(1));
+	          if (nodes.item(2)!=null){
+	        	  checkTPCOpIdNode(nodes.item(2));
+	          }
+	        } else if(type.equals(KVMessage.GETTYPE)) {
+	          checkKeyNode(nodes.item(0));
+	        
+	          //del or 2pc del
+	        } else if(type.equals(KVMessage.DELTYPE)) {
+	          checkKeyNode(nodes.item(0));
+	          if (nodes.item(1)!=null){
+	        	  this.checkTPCOpIdNode(nodes.item(1));
+	          }
+	         
+	        } else if (type.equals(KVMessage.RESPTYPE)){
+	          if (nodes.getLength() == 1) {
+	            checkMessageNode(nodes.item(0));
+	          } else if(nodes.getLength() == 2) {
+	            checkKeyNode(nodes.item(0));
+	            checkValNode(nodes.item(1));
+	          } else {
+	            throw new KVException(new KVMessage(KVMessage.RESPTYPE, "Message format incorrect"));
+	          }
+	        } else if(type.equals(KVMessage.REGISTERTYPE)){
+	        	checkMessageNode(nodes.item(0));
+	        } else if(type.equals(KVMessage.IGNORENEXTTYPE)){
+	        	if  (nodes.getLength()!=0){
 		            throw new KVException(new KVMessage(KVMessage.RESPTYPE, "Message format incorrect"));
-		          }
-		        } else if(type.equals(KVMessage.REGISTERTYPE)){
-		        	checkMessageNode(nodes.item(0));
-		        } else if(type.equals(KVMessage.IGNORENEXTTYPE)){
-		        	if  (nodes.getLength()!=0){
-			            throw new KVException(new KVMessage(KVMessage.RESPTYPE, "Message format incorrect"));
-		        	}
-		        } else if(type.equals(KVMessage.ABORTTYPE)){
-		        	//decision
-		        	if (nodes.getLength()==1) {
-		        		checkTPCOpIdNode(nodes.item(0));
-		        	
-		        	//vote
-		        	}else if(nodes.getLength()==2) {
-		        		checkMessageNode(nodes.item(0));
-		        		checkTPCOpIdNode(nodes.item(1));
-		        	}else{
-			            throw new KVException(new KVMessage(KVMessage.RESPTYPE, "Message format incorrect"));
-		        	}
-		        } else if (type.equals(KVMessage.ACKTYPE)){
+	        	}
+	        } else if(type.equals(KVMessage.ABORTTYPE)){
+	        	//decision
+	        	if (nodes.getLength()==1) {
 	        		checkTPCOpIdNode(nodes.item(0));
-		        } else if(type.equals(KVMessage.READYTYPE)){	        	
-	        		checkTPCOpIdNode(nodes.item(0));
-		        }else if(type.equals(KVMessage.COMMITTYPE)){
-	        		checkTPCOpIdNode(nodes.item(0));
-		        }
-	  		} catch (ParserConfigurationException e) {
-	  			//this should not happen
-	  			DEBUG.debug("This should not happen");
-	  			e.printStackTrace();
-	  			throw new KVException( new KVMessage(KVMessage.RESPTYPE, "Unknown Error: this should not happen") );
-	  		} catch (SAXException e) {
-	  			//not a valid XML
-	  			DEBUG.debug("Invalid XML");
-	  			e.printStackTrace();
-	  			throw new KVException( new KVMessage(KVMessage.RESPTYPE, "XML Error: Received unparseable message") );
-	  		
-	  		//IOException handles SocketTimeoutException
-	  		} catch (IOException e) {
-	  			//io error
-	  			DEBUG.debug("Could not receive data");
-	  			e.printStackTrace();
-	  			throw new KVException( new KVMessage(KVMessage.RESPTYPE, "Network Error: Could not receive data") );
-	  		} 
+	        	
+	        	//vote
+	        	}else if(nodes.getLength()==2) {
+	        		checkMessageNode(nodes.item(0));
+	        		checkTPCOpIdNode(nodes.item(1));
+	        	}else{
+		            throw new KVException(new KVMessage(KVMessage.RESPTYPE, "Message format incorrect"));
+	        	}
+	        } else if (type.equals(KVMessage.ACKTYPE)){
+        		checkTPCOpIdNode(nodes.item(0));
+	        } else if(type.equals(KVMessage.READYTYPE)){	        	
+        		checkTPCOpIdNode(nodes.item(0));
+	        }else if(type.equals(KVMessage.COMMITTYPE)){
+        		checkTPCOpIdNode(nodes.item(0));
+	        }
+  		} catch (ParserConfigurationException e) {
+  			//this should not happen
+  			DEBUG.debug("This should not happen");
+  			e.printStackTrace();
+  			throw new KVException( new KVMessage(KVMessage.RESPTYPE, "Unknown Error: this should not happen") );
+  		} catch (SAXException e) {
+  			//not a valid XML
+  			DEBUG.debug("Invalid XML");
+  			e.printStackTrace();
+  			throw new KVException( new KVMessage(KVMessage.RESPTYPE, "XML Error: Received unparseable message") );
+  		
+  		//IOException handles SocketTimeoutException
+  		} catch (IOException e) {
+  			//io error
+  			DEBUG.debug("Could not receive data");
+  			e.printStackTrace();
+  			throw new KVException( new KVMessage(KVMessage.RESPTYPE, "Network Error: Could not receive data") );
+  		} 
 	}
 	
 	/**
@@ -455,7 +460,7 @@ public class KVMessage implements Serializable, Debuggable {
 
 		Node message = nodes.item(0);
 
-		if (!message.getNodeName().equals("message"))
+		if (!message.getNodeName().equals("Message"))
 			throw new KVException( new KVMessage(KVMessage.RESPTYPE, "Message format incorrect") );
 	}
 	
@@ -534,7 +539,7 @@ public class KVMessage implements Serializable, Debuggable {
 			Node tpcOpId = nodes.item(1);
 			Node msg = nodes.item(0);
 			
-			if (!tpcOpId.getNodeName().equals("message") || !msg.getNodeName().equals("TPCOpId")) 
+			if (!msg.getNodeName().equals("Message") || !tpcOpId.getNodeName().equals("TPCOpId")) 
 				throw new KVException( new KVMessage(KVMessage.RESPTYPE, "Message format incorrect") );
 			
 		}else{
