@@ -61,6 +61,15 @@ public class KVClientHandler implements NetworkHandler {
 		private Socket client = null;
 		private TPCMaster tpcMaster = null;
 		
+		/**
+		 * A Runnable to handle a single socket from a KVClient
+		 * @param client socket from a KVClient
+		 */
+		public ClientHandler(Socket client) {
+			this.client = client;
+			this.tpcMaster = KVClientHandler.this.tpcMaster;
+		}
+		
 		private void handlePut(KVMessage msg){
 			try {
 				this.tpcMaster.performTPCOperation(msg, true);
@@ -158,7 +167,6 @@ public class KVClientHandler implements NetworkHandler {
 			
 			
 			try {
-				    
 				KVMessage msg = new KVMessage(this.client);
 
 				DEBUG.debug(this.hashCode()+msg.toXML());
@@ -205,11 +213,7 @@ public class KVClientHandler implements NetworkHandler {
 //				}
 			}
 		}
-		
-		public ClientHandler(Socket client) {
-			this.client = client;
-			this.tpcMaster = KVClientHandler.this.tpcMaster;
-		}
+
 	}
 	
 	/* (non-Javadoc)

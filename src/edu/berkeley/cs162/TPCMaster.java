@@ -82,17 +82,19 @@ public class TPCMaster implements Debuggable {
 			public RegistrationHandler(Socket client) {
 				this.client = client;
 			}
-
+		
 			@Override
 			public void run() {
 				KVMessage msg=null;
 				try {
 					msg = new KVMessage(client);
 				} catch (KVException e) {
+					e.getMsg().sendMessageIgnoringException(this.client);
 					return;
 				}
 				
 				if (!msg.getMsgType().equals(KVMessage.REGISTERTYPE)){
+					KVMessage.sendRespMsgIgnoringException("Unknown Error: cannot recognize the message type", this.client);
 					return;
 				}
 				
@@ -100,22 +102,16 @@ public class TPCMaster implements Debuggable {
 				try {
 					slaveInfo = new SlaveInfo(msg.getMessage());
 				} catch (KVException e) {
-					return;
+					e.getMsg().sendMessageIgnoringException(this.client);
 				}
+					
 				TPCMaster.this.slaveInfosLock.lock();
 				TPCMaster.this.slaveInfos.put(slaveInfo.getSlaveID(), slaveInfo);
 				TPCMaster.this.slaveInfosLock.unlock();
 				
-				
 				//send back message
-				try {
-					KVMessage response = new KVMessage(KVMessage.RESPTYPE, String.format("Successfully registered %s@%s:%s", slaveInfo.slaveID, slaveInfo.hostName, slaveInfo.port));
-					Socket sock = slaveInfo.connectHost();
-					response.sendMessage(sock);
-					slaveInfo.closeHost(sock);
-				} catch (KVException e) {
-					return;
-				}
+				KVMessage.sendRespMsgIgnoringException(String.format("Successfully registered %s@%s:%s", slaveInfo.slaveID, slaveInfo.hostName, slaveInfo.port), this.client);
+
 			}
 		}	
 	}
@@ -187,7 +183,6 @@ public class TPCMaster implements Debuggable {
 		}
 		
 		public void closeHost(Socket sock) throws KVException {
-		    // TODO: Optional Implement Me!
 			try {
 				sock.close();
 			} catch (IOException e) {

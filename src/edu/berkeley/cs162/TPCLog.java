@@ -35,6 +35,7 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.util.ArrayList;
+import java.util.HashMap;
 
 public class TPCLog {
 
@@ -52,6 +53,8 @@ public class TPCLog {
 	 Set in  rebuildKeyServer() during recovery */ 
 	private KVMessage interruptedTpcOperation = null;
 	
+	private HashMap<String, KVMessage> interruptedTpcOperations = null;
+		 	
 	/**
 	 * 
 	 * @param logPath 
@@ -71,9 +74,14 @@ public class TPCLog {
 	public boolean empty() {
 		return (entries.size() == 0);
 	}
-	
+
+	/**
+	 * Append the entry as text to the log file
+	 * @param entry
+	 */
 	public void appendAndFlush(KVMessage entry) {
-		// implement me
+		entries.add(entry);
+		this.flushToDisk();
 	}
 
 	/**
@@ -135,6 +143,34 @@ public class TPCLog {
 	 */
 	public void rebuildKeyServer() throws KVException {
 		// implement me
+		this.loadFromDisk();
+		
+		this.interruptedTpcOperations = new HashMap<String, KVMessage>();
+			
+		for (int i = 0; i<entries.size(); i++){
+			KVMessage msg = entries.get(i);
+			
+			String type = msg.getMsgType();
+			if (type.equals(KVMessage.PUTTYPE) || type.equals(KVMessage.DELTYPE)){
+				this.interruptedTpcOperations.put(msg.getTpcOpId(), msg);
+			} else if (type.equals(KVMessage.COMMITTYPE)){
+				KVMessage msgToCommit = this.interruptedTpcOperations.remove(msg.getTpcOpId());
+				
+				if (msgToCommit.getMsgType().equals(KVMessage.PUTTYPE)){
+					this.kvServer.put(msgToCommit.getKey(), msgToCommit.getValue());
+				} else {
+					this.kvServer.del(msgToCommit.getKey());
+				}
+			} else if (type.equals(KVMessage.ABORTTYPE)){
+				this.interruptedTpcOperations.remove(msg.getTpcOpId());
+			}else{
+				//shouldn't go here
+			}
+		}
+		
+		if (this.interruptedTpcOperations.size()==0){
+			this.interruptedTpcOperations = null;
+		}
 	}
 	
 	/**
@@ -153,5 +189,19 @@ public class TPCLog {
 	 */
 	public boolean hasInterruptedTpcOperation() {
 		return interruptedTpcOperation != null;
+	}
+
+	/**
+	 * Get the hashmap of interrupted tpc operations. This will set the instance variable to null
+	 * @return
+	 */
+	public HashMap<String, KVMessage> getInterruptedTpcOperations() { 
+		HashMap<String, KVMessage> temp = interruptedTpcOperations; 
+		interruptedTpcOperations = null; 
+		return temp; 
+	}
+	
+	public boolean hasInterruptedTpcOperations() {
+		return this.interruptedTpcOperations!=null;
 	}
 }

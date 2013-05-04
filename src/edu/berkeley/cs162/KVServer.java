@@ -30,6 +30,8 @@
  */
 package edu.berkeley.cs162;
 
+import java.util.concurrent.locks.ReentrantReadWriteLock.WriteLock;
+
 /**
  * This class defines the slave key value servers. Each individual KVServer 
  * would be a fully functioning Key-Value server. For Project 3, you would 
@@ -68,8 +70,11 @@ public class KVServer implements KeyValueInterface {
 		try {
 			//sanity check on key and value
 			CheckHelper.sanityCheckKeyValue(key, value);
-			
+		
+			WriteLock lock = this.dataCache.getWriteLock(key);
+			lock.lock();
 			this.dataCache.put(key, value);
+			lock.unlock();
 			this.dataStore.put(key, value);
 
 		} finally {
@@ -91,7 +96,10 @@ public class KVServer implements KeyValueInterface {
 			CheckHelper.sanityCheckKey(key);
 			
 			//try to get the value in cache
+			WriteLock lock = this.dataCache.getWriteLock(key);
+			lock.lock();
 			String cacheValue = this.dataCache.get(key);
+			lock.unlock();
 			if (cacheValue!=null) {
 				return cacheValue; //directly return the value if the value is in cache
 			}
@@ -119,7 +127,10 @@ public class KVServer implements KeyValueInterface {
 			//sanity check on key
 			CheckHelper.sanityCheckKey(key);
 			
+			WriteLock lock = this.dataCache.getWriteLock(key);
+			lock.lock();
 			this.dataCache.del(key);
+			lock.unlock();
 			this.dataStore.del(key); //will throw KVException if is not in  
 		
 		} finally {
@@ -148,9 +159,12 @@ public class KVServer implements KeyValueInterface {
 		return this.dataCache.toXML();
 	}
 	
-	public boolean hasKey (String key) throws KVException {
-		// TODO: optional implement me
-		
-		return false;
+	public boolean hasKey (String key) {
+		try {
+			this.dataStore.get(key);
+			return true;
+		} catch (KVException e) {
+			return false;
+		}
 	}
 }

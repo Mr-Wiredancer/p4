@@ -854,6 +854,28 @@ public class KVMessage implements Serializable, Debuggable {
 		}
 	}
 	
+	public static void sendRespMsgIgnoringException(String message, Socket socket){
+		try {
+			KVMessage response = new KVMessage(KVMessage.RESPTYPE, message);
+			response.sendMessageIgnoringException(socket);
+		} catch (KVException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+	}
+	
+	/**
+	 * Calls sendMessage(sock), but ignores the errors
+	 * @param sock
+	 */
+	public void sendMessageIgnoringException(Socket sock){
+		try{
+			this.sendMessage(sock);
+		} catch (Exception e){
+			//ignore this exception
+		}
+	}
+	
 	public void sendMessage(Socket sock, int timeout) throws KVException {
 		/*
 		 * As was pointed out, setting a timeout when sending the message (while would still technically work),

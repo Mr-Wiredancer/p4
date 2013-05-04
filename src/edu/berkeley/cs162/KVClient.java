@@ -59,7 +59,6 @@ public class KVClient implements KeyValueInterface,Debuggable {
 	}
 	
 	private Socket connectHost() throws KVException {
-	    // TODO: Implement Me!  
 	    Socket socket;
 	    try {
 	      socket = new Socket(this.server, port);
@@ -80,7 +79,6 @@ public class KVClient implements KeyValueInterface,Debuggable {
 	}
 	
 	private void closeHost(Socket sock) throws KVException {
-	    // TODO: Implement Me!
 		try {
 			sock.close();
 		} catch (IOException e) {
@@ -278,8 +276,11 @@ public class KVClient implements KeyValueInterface,Debuggable {
 		}
 	}
 	
+	/**
+	 * send ignoreNext to the server
+	 * @throws KVException
+	 */
 	public void ignoreNext() throws KVException {
-	    // TODO: Implement Me!
 		Socket sock = this.connectHost();
 		
 		OutputStream out = null;
