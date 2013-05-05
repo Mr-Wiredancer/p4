@@ -11,13 +11,13 @@ public class TPCMasterTest {
 
 	@Test
 	public void slaveInfoParsingTest() {
-		String pattern = "(\\d+)@(.+):(\\d+)";
+		String pattern = "(-?\\d+)@(.+):(\\d+)";
 		
-		String slaveInfo = "123192831@132:242:32.13:8080";
+		String slaveInfo = "-123192831@132:242:32.13:8080";
 		Pattern p = Pattern.compile(pattern);
 		Matcher m = p.matcher(slaveInfo);
 		assertEquals(m.matches(), true);
-		assertEquals(m.group(1), "123192831");
+		assertEquals(m.group(1), "-123192831");
 		assertEquals(m.group(2), "132:242:32.13");
 		assertEquals(m.group(3), "8080");
 		
@@ -28,10 +28,10 @@ public class TPCMasterTest {
 		assertEquals(m.group(2), "localhost::::");
 		assertEquals(m.group(3), "8080");
 		
-		slaveInfo = "98792873@@@@lo:ca:lh@@ost:::::8080";
+		slaveInfo = "-98792873@@@@lo:ca:lh@@ost:::::8080";
 		m = Pattern.compile(pattern).matcher(slaveInfo);
 		assertEquals(m.matches(), true);
-		assertEquals(m.group(1), "98792873");
+		assertEquals(m.group(1), "-98792873");
 		assertEquals(m.group(2), "@@@lo:ca:lh@@ost::::");
 		assertEquals(m.group(3), "8080");
 		
@@ -62,6 +62,14 @@ public class TPCMasterTest {
 		slaveInfo = "123@localhost:";
 		m = Pattern.compile(pattern).matcher(slaveInfo);
 		assertEquals(m.matches(), false);
-	}
+		
+		String string = "aaaa";
+		long h = 1125899906842597L; 
+		int len = string.length();
 
+		for (int i = 0; i < len; i++) {
+			h = 31*h + string.charAt(i);
+		}
+		System.out.println(h);
+	}
 }

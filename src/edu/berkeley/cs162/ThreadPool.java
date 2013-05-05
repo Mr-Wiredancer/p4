@@ -71,6 +71,7 @@ public class ThreadPool implements Debuggable{
 		}
 		
 		for (WorkerThread w : this.threads) {
+			w.setName(w.getName()+"@"+Thread.currentThread().getName());
 			w.start();
 		}
 	}

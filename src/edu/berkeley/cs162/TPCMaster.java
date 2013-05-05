@@ -148,7 +148,7 @@ public class TPCMaster implements Debuggable {
 		public SlaveInfo(String slaveInfo) throws KVException {
 			// implement me
 			//regular expression
-			String pattern = "(\\d+)@(.+):(\\d+)";
+			String pattern = "(-?\\d+)@(.+):(\\d+)";
 			Pattern p = Pattern.compile(pattern);
 			Matcher m = p.matcher(slaveInfo);
 			if (!m.matches()){
@@ -362,11 +362,15 @@ public class TPCMaster implements Debuggable {
 		
 		this.slaveInfosLock.lock();
 
-		SlaveInfo slaveInfo = this.slaveInfos.ceilingEntry(keyFirstReplica+1).getValue();
+		Map.Entry<Long, SlaveInfo> entry = this.slaveInfos.ceilingEntry(keyFirstReplica+1);
+
+		SlaveInfo slaveInfo = null;
 		
 		//if it is null, the successor is stored the 1st slave(lowest ID)
-		if (slaveInfo==null){
+		if (entry==null){
 			slaveInfo = this.slaveInfos.firstEntry().getValue();
+		}else{
+			slaveInfo = entry.getValue();
 		}
 		
 		this.slaveInfosLock.unlock();
@@ -382,8 +386,6 @@ public class TPCMaster implements Debuggable {
 		this.slaveInfosLock.lock();
 		
 		try{
-			System.out.println(this.numSlaves);
-			System.out.println(this.slaveInfos.size());
 			return this.numSlaves==this.slaveInfos.size();
 		}finally{
 			this.slaveInfosLock.unlock();
@@ -433,9 +435,12 @@ public class TPCMaster implements Debuggable {
 				//ignore
 			} 
 			
+			String e1 = errors[0];
+			String e2 = errors[1];
+			
 			//2nd phase, block until we got ack from both slaves
-			Runnable r3 = new RunnableVoteRequest(primary, msg, errors, true);
-			Runnable r4 = new RunnableVoteRequest(secondary, msg, errors, false);
+			Runnable r3 = new RunnableSendDecision(msg, true, e1==null && e2==null);
+			Runnable r4 = new RunnableSendDecision(msg, false, e1==null && e2==null);
 			
 			Thread t3 = new Thread(r3), t4 = new Thread(r4);
 			t3.start(); t4.start();
@@ -445,10 +450,7 @@ public class TPCMaster implements Debuggable {
 			} catch (InterruptedException e) {
 				//ignore
 			} 
-			
-			String e1 = errors[0];
-			String e2 = errors[1];
-			
+						
 			if (e1!=null || e2!=null){
 				String message = "";
 			
@@ -539,7 +541,6 @@ public class TPCMaster implements Debuggable {
 		
 		@Override
 		public void run() {
-			// TODO Auto-generated method stub
 			TPCMaster.this.sendDecision(msg, isPrimary, isCommit);
 		}
 		
@@ -580,11 +581,9 @@ public class TPCMaster implements Debuggable {
 				sock.setSoTimeout(TPCMaster.TIMEOUT_MILLISECONDS);
 				msg.sendMessage(sock);
 				KVMessage response = new KVMessage(sock);
-				
 				slave.closeHost(sock);
 				//return upon success
 				if (response.getMsgType().equals(KVMessage.ACKTYPE) 
-						&& response.getMessage().equals("Success") 
 						&& response.getTpcOpId().equals(msg.getTpcOpId())){
 					return ;
 				}
@@ -704,12 +703,12 @@ public class TPCMaster implements Debuggable {
 					}else{
 						values[1] = val;
 					}
-				}
-				
-				if (isPrimary){
-					errors[0] = String.format("@%s:=%s", slaveInfo.getSlaveID(), response.getMessage());
-				} else{
-					errors[1] = String.format("@%s:=%s", slaveInfo.getSlaveID(), response.getMessage());
+				}else{
+					if (isPrimary){
+						errors[0] = String.format("@%s:=%s", slaveInfo.getSlaveID(), response.getMessage());
+					} else{
+						errors[1] = String.format("@%s:=%s", slaveInfo.getSlaveID(), response.getMessage());
+					}
 				}
 			}catch(KVException e){
 				if (isPrimary){
@@ -722,7 +721,7 @@ public class TPCMaster implements Debuggable {
 				if (isPrimary){
 					errors[0] = String.format("@%s:=%s", slaveInfo.getSlaveID(), "this should not happen");
 				}else{
-					errors[0] = String.format("@%s:=%s", slaveInfo.getSlaveID(), "this should not happen");
+					errors[1] = String.format("@%s:=%s", slaveInfo.getSlaveID(), "this should not happen");
 				}
 				e.printStackTrace();
 			}
