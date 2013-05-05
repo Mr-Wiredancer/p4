@@ -47,7 +47,8 @@ public class SlaveServer {
 	 * @param args
 	 */
 	public static void main(String[] args) throws Exception {
-		if (args.length != 4) {
+		System.out.println(args.length);
+		if (args.length != 2) {
 			System.err.println("USAGE: SlaveServer <slaveID> <masterHostName>");
 			System.exit(1);
 		}
@@ -80,5 +81,4 @@ public class SlaveServer {
 		System.out.println("Starting SlaveServer at " + server.getHostname() + ":" + server.getPort());
 		server.run();
 	}
-
 }

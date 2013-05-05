@@ -44,7 +44,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock.WriteLock;
  * Coordinator Server
  *
  */
-public class TPCMasterHandler implements NetworkHandler {
+public class TPCMasterHandler implements NetworkHandler, Debuggable {
 	private KVServer kvServer = null;
 	private ThreadPool threadpool = null;
 	private TPCLog tpcLog = null;
@@ -368,8 +368,8 @@ public class TPCMasterHandler implements NetworkHandler {
 			
 			// Receive master response. 
 			// Response should always be success, except for Exceptions. Throw away.
-			new KVMessage(master.getInputStream());
-			
+			KVMessage response = new KVMessage(master.getInputStream());
+			DEBUG.debug("Message from master: "+response.getMessage());
 			master.close();
 		}finally{
 			AutoGrader.agRegistrationFinished(slaveID);

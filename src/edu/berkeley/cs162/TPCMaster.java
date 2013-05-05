@@ -37,7 +37,9 @@ import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.Map;
 import java.util.TreeMap;
+import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock.ReadLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock.WriteLock;
@@ -97,17 +99,27 @@ public class TPCMaster implements Debuggable {
 					KVMessage.sendRespMsgIgnoringException("Unknown Error: cannot recognize the message type", this.client);
 					return;
 				}
-				
+								
 				SlaveInfo slaveInfo=null;
 				try {
 					slaveInfo = new SlaveInfo(msg.getMessage());
 				} catch (KVException e) {
+					System.out.println("error when parsig: "+msg.getMessage());
 					e.getMsg().sendMessageIgnoringException(this.client);
+					return;
 				}
 					
 				TPCMaster.this.slaveInfosLock.lock();
-				TPCMaster.this.slaveInfos.put(slaveInfo.getSlaveID(), slaveInfo);
-				TPCMaster.this.slaveInfosLock.unlock();
+				try{
+					TPCMaster.this.slaveInfos.put(slaveInfo.getSlaveID(), slaveInfo);
+					if (TPCMaster.this.slaveInfos.size()>TPCMaster.this.numSlaves){
+						TPCMaster.this.slaveInfos.remove(slaveInfo.getSlaveID());
+						KVMessage.sendRespMsgIgnoringException("Unknown Error: master already has enough slave servers", this.client);
+						return;
+					}
+				}finally{
+					TPCMaster.this.slaveInfosLock.unlock();
+				}
 				
 				//send back message
 				KVMessage.sendRespMsgIgnoringException(String.format("Successfully registered %s@%s:%s", slaveInfo.slaveID, slaveInfo.hostName, slaveInfo.port), this.client);
@@ -142,7 +154,6 @@ public class TPCMaster implements Debuggable {
 			if (!m.matches()){
 				throw new KVException(new KVMessage(KVMessage.RESPTYPE, "Unknown Error: could not parse the slave info"));
 			}
-			m.find();
 			try{
 				this.slaveID = Long.parseLong(m.group(1));
 				this.hostName = m.group(2);
@@ -243,8 +254,28 @@ public class TPCMaster implements Debuggable {
 	 */
 	public void run() {
 		AutoGrader.agTPCMasterStarted();
-		// implement me
+		
+		Runnable r = new Runnable(){
+			public void run(){
+				try {
+					regServer.connect();
+					regServer.run();
+					DEBUG.debug("Starting registration server "+regServer.hostname+" on "+regServer.port);
+				} catch (Exception e) {
+					e.printStackTrace();
+				}
+			}
+		};
+		
+		new Thread(r).start();
 		AutoGrader.agTPCMasterFinished();
+	}
+	
+	/**
+	 * stop the registration server
+	 */
+	public void stop(){
+		regServer.stop();
 	}
 	
 	/**
@@ -305,11 +336,14 @@ public class TPCMaster implements Debuggable {
 		this.slaveInfosLock.lock();
 		
 		//get the value of the least key greater or equal to the hashedkey
-		SlaveInfo slaveInfo = this.slaveInfos.ceilingEntry(hashedKey).getValue();
+		Map.Entry<Long, SlaveInfo> entry = this.slaveInfos.ceilingEntry(hashedKey);
 		
+		SlaveInfo slaveInfo = null;
 		//if it is null, the hashed key is stored in the 1st slave(lowest ID)
-		if (slaveInfo==null){
+		if (entry==null){
 			slaveInfo = this.slaveInfos.firstEntry().getValue();
+		}else{
+			slaveInfo = entry.getValue();
 		}
 			
 		this.slaveInfosLock.unlock();
@@ -348,6 +382,8 @@ public class TPCMaster implements Debuggable {
 		this.slaveInfosLock.lock();
 		
 		try{
+			System.out.println(this.numSlaves);
+			System.out.println(this.slaveInfos.size());
 			return this.numSlaves==this.slaveInfos.size();
 		}finally{
 			this.slaveInfosLock.unlock();
@@ -371,7 +407,6 @@ public class TPCMaster implements Debuggable {
 		try{
 			String key = msg.getKey();
 			String value = msg.getValue();
-			msg.setTpcOpId(this.getNextTpcOpId());
 			
 			if (isPutReq){
 				this.masterCache.put(key, value);
@@ -382,35 +417,54 @@ public class TPCMaster implements Debuggable {
 			SlaveInfo primary = this.findFirstReplica(key);
 			SlaveInfo secondary = this.findSuccessor(primary);
 			
-			String error = null;
+			String[] errors = new String [2];errors[0] = null; errors[1] = null;
 			msg.setTpcOpId(this.getNextTpcOpId());
-
+	
 			//1st phase
-			try{
-				sendVoteRequest(primary, msg);
-			}catch(KVException e){	
-				error = String.format("@%s:=%s", primary.getSlaveID(), e.getMsg().getMessage());
-			}
+			Runnable r1 = new RunnableVoteRequest(primary, msg, errors, true);
+			Runnable r2 = new RunnableVoteRequest(secondary, msg, errors, false);
 			
-			try{
-				sendVoteRequest(secondary, msg);
-			}catch(KVException e){	
-				error = String.format("@%s:=%s", secondary.getSlaveID(), e.getMsg().getMessage());
-			}
+			Thread t1 = new Thread(r1), t2 = new Thread(r2);
+			t1.start(); t2.start();
+			try {
+				t1.join();
+				t2.join();
+			} catch (InterruptedException e) {
+				//ignore
+			} 
 			
 			//2nd phase, block until we got ack from both slaves
-			if ( error == null ){
-				sendDecision(msg, true, true);
-				sendDecision(msg, false, true);
-			} else {
-				sendDecision(msg, true, false);
-				sendDecision(msg, false, false);
+			Runnable r3 = new RunnableVoteRequest(primary, msg, errors, true);
+			Runnable r4 = new RunnableVoteRequest(secondary, msg, errors, false);
+			
+			Thread t3 = new Thread(r3), t4 = new Thread(r4);
+			t3.start(); t4.start();
+			try {
+				t3.join();
+				t4.join();
+			} catch (InterruptedException e) {
+				//ignore
+			} 
+			
+			String e1 = errors[0];
+			String e2 = errors[1];
+			
+			if (e1!=null || e2!=null){
+				String message = "";
+			
+				if (e1!=null && e2!=null){
+					message = e1+"\n"+e2;
+				}else if(e1!=null){
+					message = e1;
+				}else{
+					message = e2;
+				}
+				throw new KVException(new KVMessage(KVMessage.RESPTYPE, message));
 			}
-	
 		}finally{
 			lock.unlock();
 			AutoGrader.agPerformTPCOperationFinished(isPutReq);
-		}return;
+		}
 	}
 	
 	/**
@@ -439,8 +493,57 @@ public class TPCMaster implements Debuggable {
 		if (response.getMsgType().equals(KVMessage.ABORTTYPE)){
 			throw new KVException(response);
 		}
+	}
+	
+	private class RunnableVoteRequest implements Runnable{
+		SlaveInfo slaveInfo;
+		KVMessage msg; 
+		String[] errors;
+		boolean isPrimary;
+		
+		public RunnableVoteRequest(SlaveInfo slaveInfo, KVMessage msg, String[] errors, boolean isPrimary){
+			super();
+			this.slaveInfo = slaveInfo;
+			this.msg = msg;
+			this.errors = errors;
+			this.isPrimary = isPrimary;
+		}
+		
+		@Override
+		public void run() {
+			try {
+				TPCMaster.this.sendVoteRequest(slaveInfo, msg);
+			} catch (KVException e) {
+				// TODO Auto-generated catch block
+				if (isPrimary){
+					errors[0] = e.getMsg().getMessage();
+				}else{
+					errors[1] = e.getMsg().getMessage();
+				}
+			}
+		}
 		
 	}
+	
+	private class RunnableSendDecision implements Runnable{
+		KVMessage msg; 
+		boolean isPrimary;
+		boolean isCommit;
+		
+		public RunnableSendDecision(KVMessage msg, boolean isPrimary, boolean isCommit){
+			this.msg = msg;
+			this.isPrimary = isPrimary;
+			this.isCommit = isCommit;
+		}
+
+		
+		@Override
+		public void run() {
+			// TODO Auto-generated method stub
+			TPCMaster.this.sendDecision(msg, isPrimary, isCommit);
+		}
+		
+	}	
 	
 	/**
 	 * Send decision to primary/secondary slave server and keep trying until slave returns a success message
@@ -486,7 +589,6 @@ public class TPCMaster implements Debuggable {
 					return ;
 				}
 				
-				
 			} catch (KVException e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
@@ -514,72 +616,117 @@ public class TPCMaster implements Debuggable {
 		WriteLock l = this.masterCache.getWriteLock(msg.getKey());
 		l.lock();
 		try{
-			
-
 			String cacheResult = this.masterCache.get(msg.getKey());
 			
 			if (cacheResult!=null){
 				return cacheResult;
 			}
 			
-			String error = "";
+			msg.setTpcOpId(this.getNextTpcOpId());
 			
 			//trying primary
-			SlaveInfo primary = this.findFirstReplica(msg.getKey());
+			String [] values = new String[2]; values[0] = null; values[1] = null;
+			String [] errors = new String[2]; errors[0] = null; errors[1] = null;
 			
+			SlaveInfo primary = this.findFirstReplica(msg.getKey());
+			SlaveInfo secondary = this.findSuccessor(primary);
+
+			Runnable r1 = new RunnableGet(primary, msg, values,errors, true);
+			Runnable r2 = new RunnableGet(secondary, msg, values, errors, false);
+			
+			Thread t1 = new Thread(r1), t2 = new Thread(r2);
+			t1.start(); t2.start();
 			try {
-				Socket sock = primary.connectHost();
+				t1.join();
+				t2.join();
+			} catch (InterruptedException e) {
+				//ignore
+			} 
+			
+			if (values[0]!=null){
+				this.masterCache.replace(msg.getKey(), values[0]);
+				return values[0];
+			} else if (values[1]!=null){
+				this.masterCache.replace(msg.getKey(), values[1]);
+				return values[1];
+			} else {
+				String e1 = errors[0];
+				String e2 = errors[1];
+				
+				String message = "";
+				
+				if (e1!=null && e2!=null){
+					message = e1+"\n"+e2;
+				}else if(e1!=null){
+					message = e1;
+				}else{
+					message = e2;
+				}
+				
+				throw new KVException(new KVMessage(KVMessage.RESPTYPE, message));
+			}
+			
+		}finally{
+			l.unlock();
+			AutoGrader.aghandleGetFinished();
+		}
+	}
+	
+	private class RunnableGet implements Runnable{
+		SlaveInfo slaveInfo;
+		KVMessage msg;
+		boolean isPrimary;
+		String [] values, errors;
+		
+		public RunnableGet(SlaveInfo slaveInfo, KVMessage msg, String[] values, String[] errors, boolean isPrimary){
+			super();
+			this.slaveInfo = slaveInfo;
+			this.msg = msg;
+			this.isPrimary = isPrimary;
+			this.values = values;
+			this.errors = errors;
+		}
+		
+		@Override
+		public void run() {			
+			try {
+				Socket sock = slaveInfo.connectHost();
 				sock.setSoTimeout(TPCMaster.TIMEOUT_MILLISECONDS);
-				msg.setTpcOpId(this.getNextTpcOpId());
+				msg.setTpcOpId(TPCMaster.this.getNextTpcOpId());
 				msg.sendMessage(sock);
 				KVMessage response  = new KVMessage(sock);
 				
 				//return upon success
 				if (response.getMessage()==null){
 					String val = response.getValue();
-					this.masterCache.replace(response.getKey(), val);
-					return val;
+					if (isPrimary){
+						values[0] = val;
+					}else{
+						values[1] = val;
+					}
 				}
-				error+= String.format("@%s:=%s", primary.getSlaveID(), response.getMessage());
-			
+				
+				if (isPrimary){
+					errors[0] = String.format("@%s:=%s", slaveInfo.getSlaveID(), response.getMessage());
+				} else{
+					errors[1] = String.format("@%s:=%s", slaveInfo.getSlaveID(), response.getMessage());
+				}
 			}catch(KVException e){
-				error+= String.format("@%s:=%s", primary.getSlaveID(), e.getMsg().getMessage());
+				if (isPrimary){
+					errors[0] = String.format("@%s:=%s", slaveInfo.getSlaveID(), e.getMsg().getMessage());					
+				}else{
+					errors[1] = String.format("@%s:=%s", slaveInfo.getSlaveID(), e.getMsg().getMessage());
+				}
 			}catch (SocketException e) {
 				//should not happen
-				error+= String.format("@%s:=%s", primary.getSlaveID(), "this should not happen");
-				e.printStackTrace();
-			}
-			
-			//trying for secondary
-			SlaveInfo secondary = this.findSuccessor(primary);
-			
-			try {
-				Socket sock2 = secondary.connectHost();			
-				sock2.setSoTimeout(TPCMaster.TIMEOUT_MILLISECONDS);
-				
-				msg.sendMessage(sock2);
-				KVMessage response2  = new KVMessage(sock2);
-				
-				//success
-				if (response2.getMessage()==null){
-					String val = response2.getValue();
-					this.masterCache.replace(response2.getKey(), val);
-					return val;		
+				if (isPrimary){
+					errors[0] = String.format("@%s:=%s", slaveInfo.getSlaveID(), "this should not happen");
+				}else{
+					errors[0] = String.format("@%s:=%s", slaveInfo.getSlaveID(), "this should not happen");
 				}
-				error+= String.format("\n@%s:=%s", secondary.getSlaveID(), response2.getMessage());
-			
-			}catch(KVException e){
-				error+= String.format("\n@%s:=%s", secondary.getSlaveID(), e.getMsg().getMessage());
-			}catch (SocketException e) {
-				//should not happen
-				error+= String.format("\n@%s:=%s", primary.getSlaveID(), "this should not happen");
 				e.printStackTrace();
 			}
-			
-			throw new KVException(new KVMessage(KVMessage.RESPTYPE, error));
-		}finally{
-			l.unlock();
-			AutoGrader.aghandleGetFinished();
 		}
+		
 	}
 }
