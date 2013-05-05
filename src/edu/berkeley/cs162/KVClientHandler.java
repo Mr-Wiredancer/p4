@@ -202,15 +202,6 @@ public class KVClientHandler implements NetworkHandler {
 					DEBUG.debug("error happens when trying to send back error message");
 					e1.printStackTrace();
 				}
-//			} catch (IOException e) {
-//				DEBUG.debug("could not receive data");
-//				e.printStackTrace();
-//				try {
-//					new KVMessage(KVMessage.RESPTYPE, "Network Error: Could not receive data").sendMessage(this.client);
-//				} catch (KVException e1) {
-//					DEBUG.debug("error happens when trying to send back error message");
-//					e1.printStackTrace();
-//				}
 			}
 		}
 
