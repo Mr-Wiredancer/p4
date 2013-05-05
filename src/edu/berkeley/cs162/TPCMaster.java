@@ -256,6 +256,19 @@ public class TPCMaster implements Debuggable {
 		}
 	}
 	
+	public void listSlaveId(){
+		this.slaveInfosLock.lock();
+		try{
+			DEBUG.debug(String.format("there are %s slaves registered in the master:", this.slaveInfos.size()));
+			for (Map.Entry<Long, SlaveInfo> entry: this.slaveInfos.entrySet()){
+				Long slaveId = entry.getKey();
+				DEBUG.debug(String.format("%s@%s:%s", slaveId, this.getSlaveHost(slaveId), this.getSlavePort(slaveId)));
+			}
+		}finally{
+			this.slaveInfosLock.unlock();
+		}
+	}
+	
 	public int getSlavePort(Long slaveId){
 		SlaveInfo s = this.getSlaveInfo(slaveId);
 		if (s==null){
@@ -437,12 +450,6 @@ public class TPCMaster implements Debuggable {
 			String key = msg.getKey();
 			String value = msg.getValue();
 			
-			if (isPutReq){
-				this.masterCache.put(key, value);
-			}else{
-				this.masterCache.del(key);
-			}
-			
 			SlaveInfo primary = this.findFirstReplica(key);
 			SlaveInfo secondary = this.findSuccessor(primary);
 			
@@ -489,6 +496,13 @@ public class TPCMaster implements Debuggable {
 					message = String.format( "@%s:=%s", secondary.getSlaveID(), e2);
 				}
 				throw new KVException(new KVMessage(KVMessage.RESPTYPE, message));
+			}
+			
+			
+			if (isPutReq){
+				this.masterCache.put(key, value);
+			}else{
+				this.masterCache.del(key);
 			}
 		}finally{
 			lock.unlock();

@@ -186,6 +186,12 @@ public class PlayConsole implements Debuggable {
 					handleDel(kc, inputs);
 				}else if (command.equals("ignoreNext")){
 					handleIgnoreNext(inputs);
+				} else if (command.equals("slaves")){
+					if (inputs.length!=1){
+						System.out.println("could not recognize ur command");
+						continue;
+					}
+					PlayConsole.master.listSlaveId();
 				} else {
 					System.out.println("could not recognize ur command");
 				}
