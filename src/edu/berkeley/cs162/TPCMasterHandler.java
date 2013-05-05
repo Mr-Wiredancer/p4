@@ -151,10 +151,10 @@ public class TPCMasterHandler implements NetworkHandler, Debuggable {
 		 * helper method to send back a commit vote
 		 * @param msg
 		 */
-		private void sendCommit(KVMessage msg){
+		private void sendReady(KVMessage msg){
 			KVMessage commit;
 			try {
-				commit = new KVMessage(KVMessage.COMMITTYPE);
+				commit = new KVMessage(KVMessage.READYTYPE);
 				commit.setTpcOpId(msg.getTpcOpId());
 				commit.sendMessageIgnoringException(this.client);
 			} catch (KVException e) {
@@ -171,6 +171,7 @@ public class TPCMasterHandler implements NetworkHandler, Debuggable {
 			try {
 				abort = new KVMessage(KVMessage.ABORTTYPE);
 				abort.setTpcOpId(msg.getTpcOpId());
+				abort.setMessage("Unknown Error: ignore this 2PC operation");
 				abort.sendMessageIgnoringException(this.client);
 			} catch (KVException e) {
 				//ignore this exception
@@ -231,15 +232,19 @@ public class TPCMasterHandler implements NetworkHandler, Debuggable {
 				TPCMasterHandler.this.waitingLock.unlock();
 				
 				TPCMasterHandler.this.ignoreNextLock.lock();
-				if (TPCMasterHandler.this.ignoreNext) {
-					this.sendAbort(msg);
-					TPCMasterHandler.this.ignoreNext = false;
+				try{
+					if (TPCMasterHandler.this.ignoreNext) {
+						this.sendAbort(msg);
+						TPCMasterHandler.this.ignoreNext = false;
+						return;
+					}
+				}finally{
+					TPCMasterHandler.this.ignoreNextLock.unlock();
 				}
-				TPCMasterHandler.this.ignoreNextLock.unlock();
 				
 				try {
 					CheckHelper.sanityCheckKeyValue(key, msg.getValue());
-					this.sendCommit(msg);
+					this.sendReady(msg);
 				
 				} catch (KVException e) {
 					this.sendAbort(msg);
@@ -259,17 +264,21 @@ public class TPCMasterHandler implements NetworkHandler, Debuggable {
 				TPCMasterHandler.this.waitingLock.unlock();
 				
 				TPCMasterHandler.this.ignoreNextLock.lock();
-				if (TPCMasterHandler.this.ignoreNext) {
-					this.sendAbort(msg);
-					TPCMasterHandler.this.ignoreNext = false;
+				try{
+					if (TPCMasterHandler.this.ignoreNext) {
+						this.sendAbort(msg);
+						TPCMasterHandler.this.ignoreNext = false;
+						return;
+					}
+				}finally{
+					TPCMasterHandler.this.ignoreNextLock.unlock();
 				}
-				TPCMasterHandler.this.ignoreNextLock.unlock();
-								
+				
 				try {
 					CheckHelper.sanityCheckKey(key);
 
 					if (this.keyserver.hasKey(key)){
-						this.sendCommit(msg);
+						this.sendReady(msg);
 					} else {
 						this.sendAbort(msg);
 					}

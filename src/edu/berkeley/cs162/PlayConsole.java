@@ -8,6 +8,20 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 
+/**
+ * A console which lets u to play around proj4
+ * 
+ * If you're using mac/ubuntu/other unix/linux and wanna run from command line
+ * 1. go to cs162 directory and run:
+ *		"ls -r *.java | grep -v Test | xargs javac" (compile all java files without "Test" substring in filenames)
+ *
+ * 2. go to src directory and run:
+ *		"java edu/berkeley/cs162/PlayConsole"
+ *
+ * If you're using windows, just click "run" in eclipse
+ * @author amos0528
+ *
+ */
 public class PlayConsole implements Debuggable {
 	public static SocketServer server = null;
 	public static TPCMaster  master = null;	
@@ -117,19 +131,22 @@ public class PlayConsole implements Debuggable {
 			Thread.sleep(1000);
 		} catch (InterruptedException e1) {
 		}
-		System.out.println("Command List:\n" +
+		System.out.println("-------------------------------------------------\nCommand List:\n" +
 				"	slave <slaveId>\n" +
-				"		create a new slave server of <slaveId> and try to register on master\n\n" +
+				"		create a new slave server of <slaveId> and try to register on master\n" +
 				"	put <key> <value>\n" +
-				"		send a put request to master\n\n" +
+				"		send a put request to master\n" +
 				"	get <key>\n" +
-				"		send a get request to master\n\n" +
+				"		send a get request to master\n" +
 				"	del <key>\n" +
-				"		send a del request to master\n\n" +
+				"		send a del request to master\n" +
 				"	ignoreNext <address> <port>\n" +
-				"		send a ignoreNext request to the designated server on <address>:<port>\n\n" +
+				"		send a ignoreNext request to the designated server on <address>:<port>\n" +
 				"	quit\n" +
-				"		quit the most powerful, enjoyable, interesting, amazing play console in the world");
+				"		quit the most powerful, enjoyable, interesting, amazing play console in the world\n" +
+				"	slaves\n" +
+				"		list the slaveIDs of all the slaves" +
+				"-------------------------------------------------");
 		try {
 			KVClient kc = new KVClient(InetAddress.getLocalHost().getHostAddress(), 8080);
 			
@@ -167,6 +184,8 @@ public class PlayConsole implements Debuggable {
 					handleGet(kc, inputs);
 				} else if(command.equals("del")) {
 					handleDel(kc, inputs);
+				}else if (command.equals("ignoreNext")){
+					handleIgnoreNext(inputs);
 				} else {
 					System.out.println("could not recognize ur command");
 				}
@@ -178,6 +197,26 @@ public class PlayConsole implements Debuggable {
 		}
 	}
 	
+	private static void handleIgnoreNext(String[] inputs) {
+		if (inputs.length!=2){
+			System.out.println("could not recognize ur command");
+			return;
+		}
+		try{
+			long slaveId = Long.parseLong(inputs[1]);
+			String host = PlayConsole.master.getSlaveHost(slaveId);
+			int port = PlayConsole.master.getSlavePort(slaveId);
+			if (host==null){
+				System.out.println("could not find this slave");
+				return;
+			}
+			KVClient kc = new KVClient(host, port);
+			kc.ignoreNext();
+		}catch(KVException e){
+		}
+		
+	}
+
 	private static void handleDel(KVClient kc, String[] inputs) {
 		if (inputs.length!=2){
 			System.out.println("could not recognize ur command");

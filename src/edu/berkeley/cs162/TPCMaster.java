@@ -238,6 +238,33 @@ public class TPCMaster implements Debuggable {
 		regServer.addHandler(new TPCRegistrationHandler());
 	}
 	
+	private SlaveInfo getSlaveInfo(Long slaveId) {
+		this.slaveInfosLock.lock();
+		try{
+			return slaveInfos.get(slaveId);
+		}finally{
+			this.slaveInfosLock.unlock();
+		}
+	}
+	
+	public String getSlaveHost(Long slaveId){
+		SlaveInfo s = this.getSlaveInfo(slaveId);
+		if (s==null){
+			return null;
+		}else{
+			return s.hostName;
+		}
+	}
+	
+	public int getSlavePort(Long slaveId){
+		SlaveInfo s = this.getSlaveInfo(slaveId);
+		if (s==null){
+			return -1;
+		}else{
+			return s.port;
+		}
+	}
+	
 	/**
 	 * Calculates tpcOpId to be used for an operation. In this implementation
 	 * it is a long variable that increases by one for each 2PC operation. 
@@ -453,13 +480,13 @@ public class TPCMaster implements Debuggable {
 						
 			if (e1!=null || e2!=null){
 				String message = "";
-			
+				
 				if (e1!=null && e2!=null){
-					message = e1+"\n"+e2;
+					message = String.format( "@%s:=%s", primary.getSlaveID(), e1)+"\n"+String.format( "@%s:=%s", secondary.getSlaveID(), e2);
 				}else if(e1!=null){
-					message = e1;
+					message = String.format( "@%s:=%s", primary.getSlaveID(), e1);
 				}else{
-					message = e2;
+					message = String.format( "@%s:=%s", secondary.getSlaveID(), e2);
 				}
 				throw new KVException(new KVMessage(KVMessage.RESPTYPE, message));
 			}
@@ -516,7 +543,6 @@ public class TPCMaster implements Debuggable {
 			try {
 				TPCMaster.this.sendVoteRequest(slaveInfo, msg);
 			} catch (KVException e) {
-				// TODO Auto-generated catch block
 				if (isPrimary){
 					errors[0] = e.getMsg().getMessage();
 				}else{
