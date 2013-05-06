@@ -159,12 +159,15 @@ public class KVServer implements KeyValueInterface {
 		return this.dataCache.toXML();
 	}
 	
-	public boolean hasKey (String key) {
-		try {
-			this.dataStore.get(key);
-			return true;
-		} catch (KVException e) {
-			return false;
-		}
+	/**
+	 * Return true if the key is in datastore; otherwise throw a exception
+	 * @param key
+	 * @return true if key exists
+	 * @throws KVException
+	 */
+	public boolean hasKey (String key) throws KVException{
+		this.dataStore.get(key);
+		return true;
+
 	}
 }

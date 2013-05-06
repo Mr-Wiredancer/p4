@@ -204,7 +204,6 @@ public class KVClientHandler implements NetworkHandler {
 				}
 			}
 		}
-
 	}
 	
 	/* (non-Javadoc)

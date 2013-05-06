@@ -166,12 +166,12 @@ public class TPCMasterHandler implements NetworkHandler, Debuggable {
 		 * helper method to send back an abort vote
 		 * @param msg
 		 */
-		private void sendAbort(KVMessage msg){
+		private void sendAbort(String msg, String tpcOpId){
 			KVMessage abort;
 			try {
 				abort = new KVMessage(KVMessage.ABORTTYPE);
-				abort.setTpcOpId(msg.getTpcOpId());
-				abort.setMessage("Unknown Error: ignore this 2PC operation");
+				abort.setTpcOpId(tpcOpId);
+				abort.setMessage(msg);
 				abort.sendMessageIgnoringException(this.client);
 			} catch (KVException e) {
 				//ignore this exception
@@ -234,7 +234,7 @@ public class TPCMasterHandler implements NetworkHandler, Debuggable {
 				TPCMasterHandler.this.ignoreNextLock.lock();
 				try{
 					if (TPCMasterHandler.this.ignoreNext) {
-						this.sendAbort(msg);
+						this.sendAbort("Unknown Error: Ignore this 2PC operation", msg.getTpcOpId());
 						TPCMasterHandler.this.ignoreNext = false;
 						return;
 					}
@@ -247,7 +247,7 @@ public class TPCMasterHandler implements NetworkHandler, Debuggable {
 					this.sendReady(msg);
 				
 				} catch (KVException e) {
-					this.sendAbort(msg);
+					this.sendAbort(e.getMsg().getMessage(), msg.getTpcOpId());
 				}				
 			}finally{
 				AutoGrader.agTPCPutFinished(slaveID, msg, key);
@@ -266,7 +266,7 @@ public class TPCMasterHandler implements NetworkHandler, Debuggable {
 				TPCMasterHandler.this.ignoreNextLock.lock();
 				try{
 					if (TPCMasterHandler.this.ignoreNext) {
-						this.sendAbort(msg);
+						this.sendAbort("Unknown Error: Ignore this 2pc operation", msg.getTpcOpId());
 						TPCMasterHandler.this.ignoreNext = false;
 						return;
 					}
@@ -279,11 +279,9 @@ public class TPCMasterHandler implements NetworkHandler, Debuggable {
 
 					if (this.keyserver.hasKey(key)){
 						this.sendReady(msg);
-					} else {
-						this.sendAbort(msg);
 					}
 				} catch (KVException e) {
-					this.sendAbort(msg);
+					this.sendAbort(e.getMsg().getMessage(), msg.getTpcOpId());
 				}
 			}finally{
 				AutoGrader.agTPCDelFinished(slaveID, msg, key);

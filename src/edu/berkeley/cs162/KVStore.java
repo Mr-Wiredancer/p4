@@ -91,9 +91,9 @@ public class KVStore implements KeyValueInterface, Debuggable {
 			AutoGrader.agStorePutFinished(key, value);
 		}
 	}
-	
+
 	/**
-	 * 
+	 * return the value of key if key exists; otherwise throw a kvexception
 	 */
 	public synchronized String get(String key) throws KVException {
 		AutoGrader.agStoreGetStarted(key);
