@@ -152,14 +152,14 @@ public class TPCMaster implements Debuggable {
 			Pattern p = Pattern.compile(pattern);
 			Matcher m = p.matcher(slaveInfo);
 			if (!m.matches()){
-				throw new KVException(new KVMessage(KVMessage.RESPTYPE, "Unknown Error: could not parse the slave info"));
+				throw new KVException(new KVMessage(KVMessage.RESPTYPE, "Registration Error: Received unparseable slave information"));
 			}
 			try{
 				this.slaveID = Long.parseLong(m.group(1));
 				this.hostName = m.group(2);
 				this.port = Integer.parseInt(m.group(3));
 			} catch (Exception e){
-				throw new KVException(new KVMessage(KVMessage.RESPTYPE, "Unknown Error: could not recoginze the slave info"));
+				throw new KVException(new KVMessage(KVMessage.RESPTYPE, "Registration Error: Received unparseable slave information"));
 			}
 		}
 		

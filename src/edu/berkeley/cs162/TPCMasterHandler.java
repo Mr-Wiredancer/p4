@@ -234,7 +234,7 @@ public class TPCMasterHandler implements NetworkHandler, Debuggable {
 				TPCMasterHandler.this.ignoreNextLock.lock();
 				try{
 					if (TPCMasterHandler.this.ignoreNext) {
-						this.sendAbort("Unknown Error: Ignore this 2PC operation", msg.getTpcOpId());
+						this.sendAbort(String.format("IgnoreNext Error: SlaveServer %s has ignored this 2PC request during the first phase", TPCMasterHandler.this.slaveID), msg.getTpcOpId());
 						TPCMasterHandler.this.ignoreNext = false;
 						return;
 					}
@@ -266,7 +266,7 @@ public class TPCMasterHandler implements NetworkHandler, Debuggable {
 				TPCMasterHandler.this.ignoreNextLock.lock();
 				try{
 					if (TPCMasterHandler.this.ignoreNext) {
-						this.sendAbort("Unknown Error: Ignore this 2pc operation", msg.getTpcOpId());
+						this.sendAbort(String.format("IgnoreNext Error: SlaveServer %s has ignored this 2PC request during the first phase", TPCMasterHandler.this.slaveID), msg.getTpcOpId());
 						TPCMasterHandler.this.ignoreNext = false;
 						return;
 					}
